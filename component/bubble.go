@@ -2,16 +2,24 @@ package component
 
 import (
 	"fmt"
-	"reflect"
 
 	tea "charm.land/bubbletea/v2"
 )
 
-// bubbleComponent is a generic wrapper for any bubble tea model.
+// BubbleType groups the construction and typed update logic for a bubble model.
+// New creates a pointer to the initial model value. DoUpdate receives the current
+// model pointer, applies the message, and returns the updated pointer and any command.
+type BubbleType struct {
+	New      func() interface{}
+	DoUpdate func(model interface{}, msg tea.Msg) (interface{}, tea.Cmd)
+}
+
+// bubbleComponent is a generic wrapper for any Bubble Tea model.
 // It delegates View and Update calls to the underlying model.
 type bubbleComponent struct {
-	name  string
-	model interface{}
+	name     string
+	model    interface{}
+	doUpdate func(msg tea.Msg) tea.Cmd
 }
 
 // NewBubbleComponent creates a new generic bubble component wrapper.
@@ -70,68 +78,56 @@ func (b *bubbleComponent) View() string {
 }
 
 func (b *bubbleComponent) Update(msg tea.Msg) (Component, tea.Cmd) {
-	// Always call Update on the pointer - this gives us access to both
-	// value and pointer receiver methods via reflection.
-	ptr := reflect.ValueOf(b.model)
-	if ptr.Kind() != reflect.Ptr {
+	if b.doUpdate == nil {
 		return b, nil
 	}
-
-	updateMethod := ptr.MethodByName("Update")
-	if !updateMethod.IsValid() {
-		return b, nil
-	}
-
-	args := []reflect.Value{reflect.ValueOf(msg)}
-	results := updateMethod.Call(args)
-
-	if len(results) >= 1 {
-		resultVal := results[0]
-		// Create a new pointer to the updated model value
-		newPtr := reflect.New(resultVal.Type())
-		newPtr.Elem().Set(resultVal)
-		b.model = newPtr.Interface()
-	}
-
-	var cmd tea.Cmd
-	if len(results) >= 2 {
-		if cmdVal, ok := results[1].Interface().(tea.Cmd); ok {
-			cmd = cmdVal
-		}
-	}
-
+	cmd := b.doUpdate(msg)
 	return b, cmd
 }
 
-// BubbleConstructor is a function that creates a new bubble tea model.
-type BubbleConstructor func() interface{}
+// SetContent sets the text content of the underlying model if it supports it.
+// Used by CommandCallback.SetContent to push content into viewport components.
+func (b *bubbleComponent) SetContent(content string) {
+	if setter, ok := b.model.(interface{ SetContent(string) }); ok {
+		setter.SetContent(content)
+	}
+}
 
-// BubbleFactory maps bubble type names to constructor functions.
+// BubbleFactory maps bubble type names to BubbleType registrations.
 type BubbleFactory struct {
-	constructors map[string]BubbleConstructor
+	types map[string]BubbleType
 }
 
 // NewBubbleFactory creates a new empty factory.
 func NewBubbleFactory() *BubbleFactory {
 	return &BubbleFactory{
-		constructors: make(map[string]BubbleConstructor),
+		types: make(map[string]BubbleType),
 	}
 }
 
-// Register adds a bubble type constructor to the factory.
-func (f *BubbleFactory) Register(name string, constructor BubbleConstructor) {
-	f.constructors[name] = constructor
+// Register adds a BubbleType registration to the factory.
+func (f *BubbleFactory) Register(name string, bt BubbleType) {
+	f.types[name] = bt
 }
 
-// Create instantiates a bubble by name and wraps it in a bubbleComponent.
+// Create instantiates a bubble by name, wraps it in a bubbleComponent, and
+// wires the typed update closure so Update never uses reflection.
 func (f *BubbleFactory) Create(name string) (Component, error) {
-	constructor, ok := f.constructors[name]
+	bt, ok := f.types[name]
 	if !ok {
 		return nil, fmt.Errorf("unknown bubble type %q", name)
 	}
-	model := constructor()
-	return &bubbleComponent{
+	model := bt.New()
+	comp := &bubbleComponent{
 		name:  name,
 		model: model,
-	}, nil
+	}
+	if bt.DoUpdate != nil {
+		comp.doUpdate = func(msg tea.Msg) tea.Cmd {
+			newModel, cmd := bt.DoUpdate(comp.model, msg)
+			comp.model = newModel
+			return cmd
+		}
+	}
+	return comp, nil
 }

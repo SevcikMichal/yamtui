@@ -29,6 +29,8 @@ type CommandCallback interface {
 	Quit()
 	// Focus signals focus should move to a named component.
 	Focus(name string)
+	// SetContent pushes text content into a named component (e.g. viewport).
+	SetContent(componentName string, content string)
 	// Custom allows commands to register arbitrary actions.
 	Custom(actionName string, data map[string]string)
 }

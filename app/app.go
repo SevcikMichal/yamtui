@@ -203,11 +203,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// This prevents consumed keys (like tab/shift+tab for focus navigation)
 	// from being processed as text input by unfocused components.
 	if !keyConsumed {
-		for _, c := range a.Components {
-			var cmd tea.Cmd
+		for name, c := range a.Components {
 			newComp, cmd := c.Update(msg)
 			if newComp != nil {
-				c = newComp
+				a.Components[name] = newComp
 			}
 			if cmd != nil {
 				allCmds = append(allCmds, cmd)
@@ -248,7 +247,7 @@ func joinCols(cols []string, spacing float64) string {
 	if spacing <= 0 {
 		spacing = 1
 	}
-	sep := string(' ')
+	sep := strings.Repeat(" ", int(spacing))
 	result := cols[0]
 	for _, col := range cols[1:] {
 		result += sep + col
@@ -312,6 +311,16 @@ func (cb *commandCallback) Custom(actionName string, data map[string]string) {
 	}
 	cmds := handler(&appContext{app: cb.app}, cb)
 	*cb.cmds = append(*cb.cmds, cmds...)
+}
+
+func (cb *commandCallback) SetContent(componentName, content string) {
+	comp, ok := cb.app.Components[componentName]
+	if !ok {
+		return
+	}
+	if setter, ok := comp.(interface{ SetContent(string) }); ok {
+		setter.SetContent(content)
+	}
 }
 
 // ComponentOrder returns components in layout order (for focus navigation).

@@ -2,10 +2,13 @@ package component
 
 import (
 	"fmt"
+	"log"
+	"sync"
 )
 
 // Registry manages bubble type registrations and component construction.
 type Registry struct {
+	mu         sync.RWMutex
 	factory    *BubbleFactory
 	helperCons map[string]Constructor
 	setter     *PropertySetter
@@ -21,23 +24,31 @@ func NewRegistry() *Registry {
 }
 
 // RegisterBubbleType registers a bubble type with its constructor.
-func (r *Registry) RegisterBubbleType(name string, constructor BubbleConstructor) {
-	r.factory.Register(name, constructor)
+func (r *Registry) RegisterBubbleType(name string, bt BubbleType) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.factory.Register(name, bt)
 }
 
 // RegisterHelper registers a helper component type with its constructor.
 func (r *Registry) RegisterHelper(name string, constructor Constructor) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.helperCons[name] = constructor
 }
 
 // Register adds a new component type to the registry.
 // It registers the constructor as a helper component.
 func (r *Registry) Register(name string, constructor Constructor) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.helperCons[name] = constructor
 }
 
 // Build creates a component from a name and a map of properties.
 func (r *Registry) Build(name string, properties map[string]any) (Component, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	// Try bubble factory first (for typed bubbles like input, textarea)
 	if comp, err := r.factory.Create(name); err == nil {
 		// Apply generic properties.
@@ -80,9 +91,7 @@ func (r *Registry) applyProperties(comp Component, properties map[string]any) er
 
 	for prop, value := range properties {
 		if err := r.setter.SetProperty(model, prop, value); err != nil {
-			// Log warning but continue (property may not exist on this type)
-			// TODO: Add proper logging
-			_ = err
+			log.Printf("yamtui: property %q not applicable: %v", prop, err)
 		}
 	}
 

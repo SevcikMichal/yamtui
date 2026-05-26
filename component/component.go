@@ -4,8 +4,11 @@
 package component
 
 import (
+	"sync"
+
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
+	"charm.land/bubbles/v2/viewport"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -21,22 +24,52 @@ type Component interface {
 type Constructor func(properties map[string]any) (Component, error)
 
 // globalRegistry holds the default component builder.
-var globalRegistry *Registry
+var (
+	globalRegistry *Registry
+	initOnce       sync.Once
+)
 
 // Init initializes the global registry with built-in component types.
+// Calling Init more than once is safe and has no effect after the first call.
 func Init() {
-	globalRegistry = NewRegistry()
+	initOnce.Do(func() {
+		globalRegistry = NewRegistry()
 
-	// Register bubble types with the factory (generic instantiation).
-	// Constructors return pointers because PropertySetter needs pointers
-	// to modify struct fields via reflection.
-	globalRegistry.RegisterBubbleType("textarea", func() interface{} {
-		m := textarea.New()
-		return &m
-	})
-	globalRegistry.RegisterBubbleType("input", func() interface{} {
-		m := textinput.New()
-		return &m
+		globalRegistry.RegisterBubbleType("textarea", BubbleType{
+			New: func() interface{} {
+				m := textarea.New()
+				return &m
+			},
+			DoUpdate: func(model interface{}, msg tea.Msg) (interface{}, tea.Cmd) {
+				m := model.(*textarea.Model)
+				newM, cmd := m.Update(msg)
+				return &newM, cmd
+			},
+		})
+
+		globalRegistry.RegisterBubbleType("input", BubbleType{
+			New: func() interface{} {
+				m := textinput.New()
+				return &m
+			},
+			DoUpdate: func(model interface{}, msg tea.Msg) (interface{}, tea.Cmd) {
+				m := model.(*textinput.Model)
+				newM, cmd := m.Update(msg)
+				return &newM, cmd
+			},
+		})
+
+		globalRegistry.RegisterBubbleType("viewport", BubbleType{
+			New: func() interface{} {
+				m := viewport.New()
+				return &m
+			},
+			DoUpdate: func(model interface{}, msg tea.Msg) (interface{}, tea.Cmd) {
+				m := model.(*viewport.Model)
+				newM, cmd := m.Update(msg)
+				return &newM, cmd
+			},
+		})
 	})
 }
 
@@ -57,9 +90,9 @@ func Register(name string, constructor Constructor) {
 }
 
 // RegisterBubbleType adds a bubble type to the global registry's factory.
-func RegisterBubbleType(name string, constructor BubbleConstructor) {
+func RegisterBubbleType(name string, bt BubbleType) {
 	if globalRegistry == nil {
 		Init()
 	}
-	globalRegistry.RegisterBubbleType(name, constructor)
+	globalRegistry.RegisterBubbleType(name, bt)
 }

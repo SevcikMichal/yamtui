@@ -16,6 +16,10 @@ type AppContext interface {
 	GetComponent(name string) (component.Component, bool)
 	// ComponentNames returns all registered component names.
 	ComponentNames() []string
+	// ComponentOrder returns components in layout order (for focus navigation).
+	ComponentOrder() []string
+	// FocusedComponent returns the currently focused component name.
+	FocusedComponent() string
 }
 
 // CommandCallback is provided by the app and invoked by commands to signal actions.

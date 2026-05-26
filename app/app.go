@@ -6,6 +6,7 @@ package app
 
 import (
 	"fmt"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -23,8 +24,9 @@ type App struct {
 	Layout     loader.LayoutConfig
 
 	// Runtime state
-	TermWidth  int
-	TermHeight int
+	TermWidth        int
+	TermHeight       int
+	focusedComponent string // currently focused component name
 }
 
 // appContext wraps *App to provide the command.AppContext interface.
@@ -114,12 +116,14 @@ func buildCommands(commands map[string]loader.CommandConfig) (map[string]command
 // Init returns the initialization command for the program.
 // It focuses the first component by default so it can receive keyboard input.
 func (a *App) Init() tea.Cmd {
-	for _, comp := range a.Components {
+	for name, comp := range a.Components {
 		if focuser, ok := comp.(interface{ Focus() tea.Cmd }); ok {
+			a.focusedComponent = name
 			return focuser.Focus()
 		}
 		// Fallback: check for Focus() without Cmd return
 		if focuser, ok := comp.(interface{ Focus() }); ok {
+			a.focusedComponent = name
 			focuser.Focus()
 		}
 		break
@@ -156,27 +160,56 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 
-	// Handle key presses.
+	// Handle key presses. Track whether the key was consumed by a command.
+	keyConsumed := false
 	if kmsg, ok := msg.(tea.KeyPressMsg); ok {
-		cmdName, exists := a.KeyMap[kmsg.String()]
+		cmdName, exists := a.KeyMap[strings.ToLower(kmsg.String())]
 		if exists {
 			if cmd, ok := a.Commands[cmdName]; ok {
 				ctx := &appContext{app: a}
 				cb := &commandCallback{app: a, cmds: &allCmds}
 				cmd.Execute(ctx, cb)
+				keyConsumed = true
+			} else if handler, ok := command.CustomActionHandlers[cmdName]; ok {
+				ctx := &appContext{app: a}
+				cb := &commandCallback{app: a, cmds: &allCmds}
+				cmds := handler(ctx, cb)
+				allCmds = append(allCmds, cmds...)
+				keyConsumed = true
+			}
+		} else {
+			// Also try the raw string (in case keymap uses different casing)
+			cmdNameRaw, existsRaw := a.KeyMap[kmsg.String()]
+			if existsRaw {
+				if cmd, ok := a.Commands[cmdNameRaw]; ok {
+					ctx := &appContext{app: a}
+					cb := &commandCallback{app: a, cmds: &allCmds}
+					cmd.Execute(ctx, cb)
+					keyConsumed = true
+				} else if handler, ok := command.CustomActionHandlers[cmdNameRaw]; ok {
+					ctx := &appContext{app: a}
+					cb := &commandCallback{app: a, cmds: &allCmds}
+					cmds := handler(ctx, cb)
+					allCmds = append(allCmds, cmds...)
+					keyConsumed = true
+				}
 			}
 		}
 	}
 
-	// Delegate to components.
-	for _, c := range a.Components {
-		var cmd tea.Cmd
-		newComp, cmd := c.Update(msg)
-		if newComp != nil {
-			c = newComp
-		}
-		if cmd != nil {
-			allCmds = append(allCmds, cmd)
+	// Only delegate to components if the key was not consumed by a command.
+	// This prevents consumed keys (like tab/shift+tab for focus navigation)
+	// from being processed as text input by unfocused components.
+	if !keyConsumed {
+		for _, c := range a.Components {
+			var cmd tea.Cmd
+			newComp, cmd := c.Update(msg)
+			if newComp != nil {
+				c = newComp
+			}
+			if cmd != nil {
+				allCmds = append(allCmds, cmd)
+			}
 		}
 	}
 
@@ -248,7 +281,24 @@ func (cb *commandCallback) Focus(name string) {
 	if !ok {
 		return
 	}
-	if focuser, ok := comp.(interface{ Focus() }); ok {
+	// Blur the previously focused component first.
+	// This ensures only one component shows its cursor at a time.
+	prevName := cb.app.focusedComponent
+	if prevName != "" && prevName != name {
+		if prevComp, ok := cb.app.Components[prevName]; ok {
+			if blurrer, ok := prevComp.(interface{ Blur() }); ok {
+				blurrer.Blur()
+			}
+		}
+	}
+	cb.app.focusedComponent = name
+	// Check if Focus() returns a tea.Cmd - Bubbletea needs this to actually set focus
+	if focuser, ok := comp.(interface{ Focus() tea.Cmd }); ok {
+		cmd := focuser.Focus()
+		if cmd != nil {
+			*cb.cmds = append(*cb.cmds, cmd)
+		}
+	} else if focuser, ok := comp.(interface{ Focus() }); ok {
 		focuser.Focus()
 	}
 }
@@ -260,4 +310,18 @@ func (cb *commandCallback) Custom(actionName string, data map[string]string) {
 	}
 	cmds := handler(&appContext{app: cb.app}, cb)
 	*cb.cmds = append(*cb.cmds, cmds...)
+}
+
+// ComponentOrder returns components in layout order (for focus navigation).
+func (c *appContext) ComponentOrder() []string {
+	var order []string
+	for _, row := range c.app.Layout.Rows {
+		order = append(order, row.Components...)
+	}
+	return order
+}
+
+// FocusedComponent returns the currently focused component name.
+func (c *appContext) FocusedComponent() string {
+	return c.app.focusedComponent
 }

@@ -6,6 +6,12 @@ package component
 import (
 	"sync"
 
+	"charm.land/bubbles/v2/filepicker"
+	"charm.land/bubbles/v2/paginator"
+	"charm.land/bubbles/v2/progress"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/stopwatch"
+	"charm.land/bubbles/v2/table"
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbles/v2/viewport"
@@ -29,47 +35,36 @@ var (
 	initOnce       sync.Once
 )
 
-// Init initializes the global registry with built-in component types.
-// Calling Init more than once is safe and has no effect after the first call.
+// Init initializes the global registry with all built-in Bubble Tea component
+// types. Calling Init more than once is safe and has no effect after the first call.
 func Init() {
 	initOnce.Do(func() {
 		globalRegistry = NewRegistry()
 
-		globalRegistry.RegisterBubbleType("textarea", BubbleType{
-			New: func() interface{} {
-				m := textarea.New()
-				return &m
-			},
-			DoUpdate: func(model interface{}, msg tea.Msg) (interface{}, tea.Cmd) {
-				m := model.(*textarea.Model)
-				newM, cmd := m.Update(msg)
-				return &newM, cmd
-			},
-		})
+		// reg is a shorthand: registers a bubble using reflection-based update
+		// dispatch so no per-type DoUpdate boilerplate is needed.
+		reg := func(name string, newFn func() interface{}) {
+			globalRegistry.RegisterBubbleType(name, BubbleType{New: newFn})
+		}
 
-		globalRegistry.RegisterBubbleType("input", BubbleType{
-			New: func() interface{} {
-				m := textinput.New()
-				return &m
-			},
-			DoUpdate: func(model interface{}, msg tea.Msg) (interface{}, tea.Cmd) {
-				m := model.(*textinput.Model)
-				newM, cmd := m.Update(msg)
-				return &newM, cmd
-			},
-		})
+		// Text input
+		reg("input", func() interface{} { return textinput.New() })
+		reg("textarea", func() interface{} { return textarea.New() })
 
-		globalRegistry.RegisterBubbleType("viewport", BubbleType{
-			New: func() interface{} {
-				m := viewport.New()
-				return &m
-			},
-			DoUpdate: func(model interface{}, msg tea.Msg) (interface{}, tea.Cmd) {
-				m := model.(*viewport.Model)
-				newM, cmd := m.Update(msg)
-				return &newM, cmd
-			},
-		})
+		// Scrollable read-only content
+		reg("viewport", func() interface{} { return viewport.New() })
+
+		// Activity indicators
+		reg("spinner", func() interface{} { return spinner.New() })
+		reg("progress", func() interface{} { return progress.New() })
+		reg("stopwatch", func() interface{} { return stopwatch.New() })
+
+		// Data display
+		reg("table", func() interface{} { return table.New() })
+
+		// Navigation / selection
+		reg("paginator", func() interface{} { return paginator.New() })
+		reg("filepicker", func() interface{} { return filepicker.New() })
 	})
 }
 
@@ -95,4 +90,17 @@ func RegisterBubbleType(name string, bt BubbleType) {
 		Init()
 	}
 	globalRegistry.RegisterBubbleType(name, bt)
+}
+
+// RegisterBubble registers any Bubble Tea model using only a constructor.
+// Update dispatch is derived automatically via reflection so no DoUpdate
+// boilerplate is required. The constructor may return a value or a pointer;
+// the framework takes the address if necessary.
+//
+//	component.RegisterBubble("spinner", func() interface{} { return spinner.New() })
+func RegisterBubble(name string, newFn func() interface{}) {
+	if globalRegistry == nil {
+		Init()
+	}
+	globalRegistry.RegisterBubbleType(name, BubbleType{New: newFn})
 }

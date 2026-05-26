@@ -42,7 +42,7 @@ func main() {
 
 	exampleName := os.Args[1]
 
-	// Initialize the component registry with built-in types.
+	// Initialize the component registry with all built-in bubble types.
 	component.Init()
 
 	// Register custom action handlers for focus navigation.

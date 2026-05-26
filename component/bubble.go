@@ -2,6 +2,7 @@ package component
 
 import (
 	"fmt"
+	"reflect"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -12,6 +13,31 @@ import (
 type BubbleType struct {
 	New      func() interface{}
 	DoUpdate func(model interface{}, msg tea.Msg) (interface{}, tea.Cmd)
+}
+
+// Updatable is the constraint satisfied by all Bubble Tea model types whose
+// Update method returns the same type (the standard pattern for bubbles).
+type Updatable[M any] interface {
+	Update(tea.Msg) (M, tea.Cmd)
+}
+
+// MakeBubbleType creates a BubbleType for any bubble model that satisfies
+// Updatable. This eliminates per-type DoUpdate boilerplate: any bubble whose
+// Update returns its own type can be registered with a single line:
+//
+//	component.RegisterBubbleType("spinner", component.MakeBubbleType(spinner.New))
+func MakeBubbleType[M Updatable[M]](newFn func() M) BubbleType {
+	return BubbleType{
+		New: func() interface{} {
+			m := newFn()
+			return &m
+		},
+		DoUpdate: func(model interface{}, msg tea.Msg) (interface{}, tea.Cmd) {
+			m := model.(*M)
+			newM, cmd := (*m).Update(msg)
+			return &newM, cmd
+		},
+	}
 }
 
 // bubbleComponent is a generic wrapper for any Bubble Tea model.
@@ -93,6 +119,40 @@ func (b *bubbleComponent) SetContent(content string) {
 	}
 }
 
+// makeReflectiveDoUpdate builds an update closure for any bubble model using
+// reflection. It is called once at registration/creation time: element type and
+// method index are pre-cached so the per-call cost is two reflect.Value ops
+// rather than a full MethodByName lookup every frame.
+// model must be a pointer to the bubble struct.
+func makeReflectiveDoUpdate(model interface{}) func(interface{}, tea.Msg) (interface{}, tea.Cmd) {
+	modelType := reflect.TypeOf(model) // *M
+	elemType := modelType.Elem()       // M
+
+	updateIdx := -1
+	for i := 0; i < modelType.NumMethod(); i++ {
+		if modelType.Method(i).Name == "Update" {
+			updateIdx = i
+			break
+		}
+	}
+	if updateIdx < 0 {
+		return func(m interface{}, _ tea.Msg) (interface{}, tea.Cmd) { return m, nil }
+	}
+
+	return func(model interface{}, msg tea.Msg) (interface{}, tea.Cmd) {
+		results := reflect.ValueOf(model).Method(updateIdx).Call(
+			[]reflect.Value{reflect.ValueOf(msg)},
+		)
+		newPtr := reflect.New(elemType)
+		newPtr.Elem().Set(results[0])
+		var cmd tea.Cmd
+		if c, ok := results[1].Interface().(tea.Cmd); ok {
+			cmd = c
+		}
+		return newPtr.Interface(), cmd
+	}
+}
+
 // BubbleFactory maps bubble type names to BubbleType registrations.
 type BubbleFactory struct {
 	types map[string]BubbleType
@@ -111,23 +171,31 @@ func (f *BubbleFactory) Register(name string, bt BubbleType) {
 }
 
 // Create instantiates a bubble by name, wraps it in a bubbleComponent, and
-// wires the typed update closure so Update never uses reflection.
+// wires the update closure. If BubbleType.DoUpdate is nil the closure is
+// derived automatically via reflection (element type and method index are
+// pre-cached here, not on every frame).
 func (f *BubbleFactory) Create(name string) (Component, error) {
 	bt, ok := f.types[name]
 	if !ok {
 		return nil, fmt.Errorf("unknown bubble type %q", name)
 	}
 	model := bt.New()
-	comp := &bubbleComponent{
-		name:  name,
-		model: model,
+	// Ensure the stored model is always a pointer so pointer-receiver
+	// methods (Focus, Blur, SetWidth, SetContent …) work correctly.
+	if v := reflect.ValueOf(model); v.Kind() != reflect.Ptr {
+		ptr := reflect.New(v.Type())
+		ptr.Elem().Set(v)
+		model = ptr.Interface()
 	}
-	if bt.DoUpdate != nil {
-		comp.doUpdate = func(msg tea.Msg) tea.Cmd {
-			newModel, cmd := bt.DoUpdate(comp.model, msg)
-			comp.model = newModel
-			return cmd
-		}
+	comp := &bubbleComponent{name: name, model: model}
+	doUpdateFn := bt.DoUpdate
+	if doUpdateFn == nil {
+		doUpdateFn = makeReflectiveDoUpdate(model)
+	}
+	comp.doUpdate = func(msg tea.Msg) tea.Cmd {
+		newModel, cmd := doUpdateFn(comp.model, msg)
+		comp.model = newModel
+		return cmd
 	}
 	return comp, nil
 }

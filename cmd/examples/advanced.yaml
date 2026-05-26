@@ -60,6 +60,7 @@ commands:
   # Quit command with inline bind (alternative to keybindings section)
   quitApp:
     type: "quit"
+    bind: "q"
 
   # Focus command - moves focus to notesArea
   focusNotes:
@@ -80,3 +81,4 @@ commands:
   submitNote:
     type: "focus"
     target: "statusInput"
+    bind: ":"

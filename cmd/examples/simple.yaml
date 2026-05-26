@@ -1,0 +1,35 @@
+# =============================================================================
+# Simple Example - Basic Input Component
+# =============================================================================
+# This is the simplest example demonstrating:
+#   - A single text input component
+#   - One keybinding -> command mapping
+#   - The built-in "quit" command
+#
+# Usage: go run cmd/examples/main.go simple
+# =============================================================================
+
+theme:
+  name: "default"
+
+components:
+  # Define a named text input component
+  myInput:
+    type: "input"
+    properties:
+      placeholder: "Type something here..."
+      prompt: "> "
+      cursor: true
+      multiline: false
+
+layout:
+  rows:
+    - components: ["myInput"]
+
+keybindings:
+  # Map "enter" key to the "quit" command
+  enter: quit
+
+commands:
+  quit:
+    type: "quit"

@@ -1,44 +1,258 @@
-// Package app provides the high-level entry point for running
-// the declarative UI application. It encapsulates all Bubbletea
-// logic so external consumers do not need to import Bubbletea directly.
+// Package app provides a complete declarative UI application framework
+// built on Bubbletea. It encapsulates the application model, component
+// system, command registry, and entry point — external consumers do not
+// need to import Bubbletea directly.
 package app
 
 import (
-	"log"
+	"fmt"
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/SevcikMichal/yamtui/builder"
 	"github.com/SevcikMichal/yamtui/command"
+	"github.com/SevcikMichal/yamtui/component"
+	"github.com/SevcikMichal/yamtui/layout"
 	"github.com/SevcikMichal/yamtui/loader"
 )
 
-// Run creates and runs the application from a YAML config file.
-// It registers all built-in commands, loads the config, and starts
-// the Bubbletea program. This is the stable entry point for external
-// consumers — yalca and other apps should call this instead of
-// importing Bubbletea directly.
-func Run(configPath string) error {
-	command.RegisterBuiltinCommands()
+// App is the main application struct that implements tea.Model.
+type App struct {
+	Components map[string]component.Component
+	Commands   map[string]command.Command
+	KeyMap     map[string]string // key string -> command name
+	Layout     loader.LayoutConfig
 
-	cfg := loader.LoadDefaults()
-	if configPath != "" {
-		var err error
-		cfg, err = loader.Load(configPath)
-		if err != nil {
-			log.Printf("Warning: failed to load config %q: %v (using defaults)", configPath, err)
-			cfg = loader.LoadDefaults()
+	// Runtime state
+	TermWidth  int
+	TermHeight int
+}
+
+// appContext wraps *App to provide the command.AppContext interface.
+type appContext struct {
+	app *App
+}
+
+func (c *appContext) GetComponent(name string) (component.Component, bool) {
+	comp, ok := c.app.Components[name]
+	return comp, ok
+}
+
+func (c *appContext) ComponentNames() []string {
+	names := make([]string, 0, len(c.app.Components))
+	for name := range c.app.Components {
+		names = append(names, name)
+	}
+	return names
+}
+
+// BuildApp creates an App from YAML configuration.
+func BuildApp(cfg *loader.Configuration) (*App, error) {
+	// Build components using the component registry.
+	components, err := buildComponents(cfg.Components)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build commands.
+	commands, err := buildCommands(cfg.Commands)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build keybindings map, merging explicit keybindings with inline bind fields.
+	keyMap := make(map[string]string)
+	for k, v := range cfg.Keybindings {
+		keyMap[k] = v
+	}
+	for name, cmdCfg := range cfg.Commands {
+		if cmdCfg.Bind != "" {
+			keyMap[cmdCfg.Bind] = name
 		}
 	}
 
-	app, err := builder.Build(cfg)
-	if err != nil {
-		return err
-	}
+	return &App{
+		Components: components,
+		Commands:   commands,
+		KeyMap:     keyMap,
+		Layout:     cfg.Layout,
+	}, nil
+}
 
-	p := tea.NewProgram(app)
-	if _, err := p.Run(); err != nil {
-		return err
+// buildComponents creates components from YAML configuration.
+func buildComponents(components map[string]loader.ComponentConfig) (map[string]component.Component, error) {
+	result := make(map[string]component.Component, len(components))
+	for name, cfg := range components {
+		comp, err := component.Build(cfg.Type, cfg.Properties)
+		if err != nil {
+			return nil, fmt.Errorf("building component %q (type %q): %w", name, cfg.Type, err)
+		}
+		result[name] = comp
+	}
+	return result, nil
+}
+
+// buildCommands creates commands from YAML configuration.
+func buildCommands(commands map[string]loader.CommandConfig) (map[string]command.Command, error) {
+	result := make(map[string]command.Command, len(commands))
+	for name, cfg := range commands {
+		switch cfg.Type {
+		case "quit":
+			result[name] = command.QuitCommand{}
+		case "focus":
+			result[name] = command.FocusCommand{Target: cfg.Target}
+		default:
+			constructor, ok := command.CommandConstructors[cfg.Type]
+			if !ok {
+				continue
+			}
+			result[name] = constructor()
+		}
+	}
+	return result, nil
+}
+
+// Init returns the initialization command for the program.
+// It focuses the first component by default so it can receive keyboard input.
+func (a *App) Init() tea.Cmd {
+	for _, comp := range a.Components {
+		if focuser, ok := comp.(interface{ Focus() tea.Cmd }); ok {
+			return focuser.Focus()
+		}
+		// Fallback: check for Focus() without Cmd return
+		if focuser, ok := comp.(interface{ Focus() }); ok {
+			focuser.Focus()
+		}
+		break
 	}
 	return nil
+}
+
+// Update processes messages and delegates to handlers and components.
+func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var allCmds []tea.Cmd
+
+	// Handle window resize.
+	if wmsg, ok := msg.(tea.WindowSizeMsg); ok {
+		a.TermWidth = wmsg.Width
+		a.TermHeight = wmsg.Height
+
+		// Calculate and apply layout dimensions.
+		sizes := layout.CalculateLayout(a.TermWidth, a.TermHeight, a.Layout)
+		for name, size := range sizes {
+			comp, ok := a.Components[name]
+			if !ok {
+				continue
+			}
+			if sc, ok := comp.(interface{ SetSize(int, int) }); ok {
+				sc.SetSize(size.Width, size.Height)
+			}
+		}
+
+		return a, nil
+	}
+
+	// Handle key presses.
+	if kmsg, ok := msg.(tea.KeyPressMsg); ok {
+		cmdName, exists := a.KeyMap[kmsg.String()]
+		if exists {
+			if cmd, ok := a.Commands[cmdName]; ok {
+				ctx := &appContext{app: a}
+				cb := &commandCallback{app: a, cmds: &allCmds}
+				cmd.Execute(ctx, cb)
+			}
+		}
+	}
+
+	// Delegate to components.
+	for _, c := range a.Components {
+		var cmd tea.Cmd
+		newComp, cmd := c.Update(msg)
+		if newComp != nil {
+			c = newComp
+		}
+		if cmd != nil {
+			allCmds = append(allCmds, cmd)
+		}
+	}
+
+	return a, tea.Batch(allCmds...)
+}
+
+// View renders the UI using the component grid layout.
+func (a *App) View() tea.View {
+	var rows []string
+
+	for _, row := range a.Layout.Rows {
+		var cols []string
+		for _, name := range row.Components {
+			if c, ok := a.Components[name]; ok {
+				cols = append(cols, c.View())
+			}
+		}
+		rows = append(rows, joinCols(cols, row.Spacing))
+	}
+
+	layoutStr := joinRows(rows)
+
+	return tea.View{
+		Content:   layoutStr,
+		AltScreen: true,
+	}
+}
+
+// joinCols joins column views with spacing between them.
+func joinCols(cols []string, spacing float64) string {
+	if len(cols) == 0 {
+		return ""
+	}
+	if spacing <= 0 {
+		spacing = 1
+	}
+	sep := string(' ')
+	result := cols[0]
+	for _, col := range cols[1:] {
+		result += sep + col
+	}
+	return result
+}
+
+// joinRows joins row strings with newlines between them.
+func joinRows(rows []string) string {
+	if len(rows) == 0 {
+		return ""
+	}
+	result := rows[0]
+	for _, row := range rows[1:] {
+		result += "\n" + row
+	}
+	return result
+}
+
+// commandCallback implements CommandCallback and bridges to Bubbletea.
+type commandCallback struct {
+	app  *App
+	cmds *[]tea.Cmd
+}
+
+func (cb *commandCallback) Quit() {
+	*cb.cmds = append(*cb.cmds, tea.Quit)
+}
+
+func (cb *commandCallback) Focus(name string) {
+	comp, ok := cb.app.Components[name]
+	if !ok {
+		return
+	}
+	if focuser, ok := comp.(interface{ Focus() }); ok {
+		focuser.Focus()
+	}
+}
+
+func (cb *commandCallback) Custom(actionName string, data map[string]string) {
+	handler, ok := command.CustomActionHandlers[actionName]
+	if !ok {
+		return
+	}
+	cmds := handler(&appContext{app: cb.app}, cb)
+	*cb.cmds = append(*cb.cmds, cmds...)
 }

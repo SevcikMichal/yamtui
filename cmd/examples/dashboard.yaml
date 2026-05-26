@@ -1,0 +1,150 @@
+# =============================================================================
+# Dashboard Example - Complex Layout with Sizing
+# =============================================================================
+# This example demonstrates the full power of the YAML framework:
+#   - Advanced layout with 3 rows and 2 columns
+#   - Dimension sizing: fixed, ratio, fill
+#   - Multiple component types
+#   - Theme configuration
+#   - Comprehensive keybinding system
+#   - Command chaining via focus management
+#
+# Layout Structure:
+#   +------------------+  +------------------+
+#   |   Header (fill)  |  |   Status (fixed) |
+#   +------------------+  +------------------+
+#   |                  |  |                  |
+#   |   Main Content   |  |   Sidebar        |
+#   |   (fill/ratio)   |  |   (fill)         |
+#   |                  |  |                  |
+#   +------------------+  +------------------+
+#   |  Footer Input (fill)                       |
+#   +--------------------------------------------+
+#
+# Usage: go run cmd/examples/main.go dashboard
+# =============================================================================
+
+theme:
+  name: "default"
+
+components:
+  # --- Header Section ---
+  headerTitle:
+    type: "input"
+    properties:
+      placeholder: "YAMTUI Dashboard v1.0"
+      prompt: ""
+      readonly: true
+
+  headerStatus:
+    type: "input"
+    properties:
+      placeholder: "● Connected"
+      prompt: ""
+      readonly: true
+
+  # --- Main Content Area ---
+  mainContent:
+    type: "textarea"
+    properties:
+      placeholder: "Main dashboard content area...\n\nThis could display logs, metrics, or any text-based information."
+      setWordWrap: true
+      rows: 15
+
+  # --- Sidebar ---
+  sidebar:
+    type: "textarea"
+    properties:
+      placeholder: "Sidebar Panel\n\n- Active Users: 5\n- Tasks: 12\n- Alerts: 2\n- Uptime: 99.9%"
+      setWordWrap: true
+      rows: 15
+      readonly: true
+
+  # --- Footer ---
+  footerInput:
+    type: "input"
+    properties:
+      placeholder: "Enter command..."
+      prompt: "cmd> "
+      cursor: true
+
+layout:
+  rows:
+    # Row 1: Header (two columns)
+    - components: ["headerTitle", "headerStatus"]
+      spacing: 2
+
+    # Row 2: Main content area (two columns)
+    - components: ["mainContent", "sidebar"]
+      spacing: 2
+
+    # Row 3: Footer (single full-width input)
+    - components: ["footerInput"]
+
+  # Sizing configuration
+  sizing:
+    # Header row - fixed height of 3 lines
+    headerTitle:
+      height:
+        type: "fixed"
+        value: 3
+    headerStatus:
+      height:
+        type: "fixed"
+        value: 3
+
+    # Main content - fill remaining vertical space
+    mainContent:
+      width:
+        type: "ratio"
+        value: 2.0  # Takes 2/3 of width (2:1 ratio with sidebar)
+      height:
+        type: "fill"
+
+    sidebar:
+      width:
+        type: "ratio"
+        value: 1.0  # Takes 1/3 of width
+      height:
+        type: "fill"
+
+    # Footer - fixed height, fills width automatically
+    footerInput:
+      height:
+        type: "fixed"
+        value: 3
+
+keybindings:
+  # Navigation
+  tab: focusMain
+  shift+tab: focusSidebar
+  ctrl+n: focusFooter
+  # Content actions
+  enter: submitCommand
+  ctrl+l: clearContent
+  # Window management
+  ctrl+c: quit
+
+commands:
+  quit:
+    type: "quit"
+
+  focusMain:
+    type: "focus"
+    target: "mainContent"
+
+  focusSidebar:
+    type: "focus"
+    target: "sidebar"
+
+  focusFooter:
+    type: "focus"
+    target: "footerInput"
+
+  submitCommand:
+    type: "focus"
+    target: "mainContent"
+
+  clearContent:
+    type: "focus"
+    target: "footerInput"

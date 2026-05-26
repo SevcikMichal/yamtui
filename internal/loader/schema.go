@@ -11,12 +11,12 @@ import (
 
 // Configuration is the root YAML configuration structure.
 type Configuration struct {
-	AltScreen  bool                       `yaml:"alt_screen"`
-	Theme      ThemeConfig                `yaml:"theme"`
-	Components map[string]ComponentConfig `yaml:"components"`
-	Layout     LayoutConfig               `yaml:"layout"`
-	Keybindings map[string]string         `yaml:"keybindings"`
-	Commands   map[string]CommandConfig   `yaml:"commands"`
+	AltScreen   bool                       `yaml:"alt_screen"`
+	Theme       ThemeConfig                `yaml:"theme"`
+	Components  map[string]ComponentConfig `yaml:"components"`
+	Layout      LayoutConfig               `yaml:"layout"`
+	Keybindings map[string]string          `yaml:"keybindings"`
+	Commands    map[string]CommandConfig   `yaml:"commands"`
 }
 
 // Validate checks the config for required fields and consistency.
@@ -38,14 +38,14 @@ type ComponentConfig struct {
 
 // LayoutConfig defines component ordering and sizing.
 type LayoutConfig struct {
-	Rows   []RowConfig          `yaml:"rows"`
+	Rows   []RowConfig           `yaml:"rows"`
 	Sizing map[string]SizeConfig `yaml:"sizing"`
 }
 
 // RowConfig defines a single row of components in the grid layout.
 type RowConfig struct {
-	Components []string  `yaml:"components"`
-	Spacing    float64   `yaml:"spacing"` // gap between columns in chars (default: 1)
+	Components []string `yaml:"components"`
+	Spacing    float64  `yaml:"spacing"` // gap between columns in chars (default: 1)
 }
 
 // SizeConfig defines how a component is sized in both dimensions.

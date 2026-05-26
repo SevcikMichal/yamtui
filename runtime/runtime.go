@@ -6,7 +6,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/SevcikMichal/yamtui/app"
-	"github.com/SevcikMichal/yamtui/loader"
+	"github.com/SevcikMichal/yamtui/internal/loader"
 )
 
 // Run creates and runs the application from a YAML config file.

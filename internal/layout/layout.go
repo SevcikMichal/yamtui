@@ -2,7 +2,7 @@
 package layout
 
 import (
-	"github.com/SevcikMichal/yamtui/loader"
+	"github.com/SevcikMichal/yamtui/internal/loader"
 )
 
 // Size holds the computed dimensions for a component.
@@ -42,7 +42,7 @@ func calculateGridLayout(termWidth, termHeight int, layoutConfig loader.LayoutCo
 	// Recalculate row heights after accounting for gaps.
 	rowHeights = allocateRowHeights(availHeight, layoutConfig)
 
-	// Phase 2: Allocate column widths within each row.
+	// Phase 2: Allocate column width within each row.
 	for rowIndex, row := range layoutConfig.Rows {
 		spacing := row.Spacing
 		if spacing <= 0 {

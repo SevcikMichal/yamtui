@@ -12,8 +12,8 @@ import (
 
 	"github.com/SevcikMichal/yamtui/command"
 	"github.com/SevcikMichal/yamtui/component"
-	"github.com/SevcikMichal/yamtui/layout"
-	"github.com/SevcikMichal/yamtui/loader"
+	"github.com/SevcikMichal/yamtui/internal/layout"
+	"github.com/SevcikMichal/yamtui/internal/loader"
 )
 
 // App is the main application struct that implements tea.Model.

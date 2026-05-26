@@ -19,6 +19,7 @@ components:
     properties:
       placeholder: "Type something here..."
       prompt: "> "
+      width: 60
       cursor: true
       multiline: false
 

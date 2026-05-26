@@ -26,6 +26,42 @@ func (b *bubbleComponent) Name() string {
 	return b.name
 }
 
+// Focus delegates to the underlying model's Focus method.
+// It implements the Focus() tea.Cmd interface for textinput/textarea.
+func (b *bubbleComponent) Focus() tea.Cmd {
+	if focuser, ok := b.model.(interface{ Focus() tea.Cmd }); ok {
+		return focuser.Focus()
+	}
+	if focuser, ok := b.model.(interface{ Focus() }); ok {
+		focuser.Focus()
+	}
+	return nil
+}
+
+// Blur delegates to the underlying model's Blur method.
+func (b *bubbleComponent) Blur() {
+	if blurrer, ok := b.model.(interface{ Blur() }); ok {
+		blurrer.Blur()
+	}
+}
+
+// SetWidth delegates to the underlying model's SetWidth method.
+func (b *bubbleComponent) SetWidth(w int) {
+	if setter, ok := b.model.(interface{ SetWidth(int) }); ok {
+		setter.SetWidth(w)
+	}
+}
+
+// SetSize delegates to the underlying model's SetSize method if available.
+func (b *bubbleComponent) SetSize(width, height int) {
+	if setter, ok := b.model.(interface{ SetSize(int, int) }); ok {
+		setter.SetSize(width, height)
+	} else {
+		// Fallback: set width only.
+		b.SetWidth(width)
+	}
+}
+
 func (b *bubbleComponent) View() string {
 	if viewer, ok := b.model.(interface{ View() string }); ok {
 		return viewer.View()

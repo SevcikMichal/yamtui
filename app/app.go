@@ -146,6 +146,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if sc, ok := comp.(interface{ SetSize(int, int) }); ok {
 				sc.SetSize(size.Width, size.Height)
 			}
+			// Set width via SetWidth interface (for textinput/textarea).
+			// This enables responsive layouts defined in YAML using sizing.ratio or sizing.fill.
+			if sw, ok := comp.(interface{ SetWidth(int) }); ok {
+				sw.SetWidth(size.Width)
+			}
 		}
 
 		return a, nil

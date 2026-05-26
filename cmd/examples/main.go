@@ -13,6 +13,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	stdruntime "runtime"
@@ -22,6 +23,15 @@ import (
 )
 
 func main() {
+	// Set up logging to file
+	logFile, err := os.Create("/tmp/yamtui-debug.log")
+	if err == nil {
+		log.SetOutput(logFile)
+		log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
+	} else {
+		fmt.Fprintf(os.Stderr, "Warning: could not open log file: %v\n", err)
+	}
+
 	if len(os.Args) < 2 {
 		printUsage()
 		os.Exit(1)

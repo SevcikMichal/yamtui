@@ -4,8 +4,6 @@
 package command
 
 import (
-	tea "charm.land/bubbletea/v2"
-
 	"github.com/SevcikMichal/yamtui/component"
 )
 
@@ -43,10 +41,10 @@ type Command interface {
 }
 
 // CustomActionHandlers maps custom action names to handler functions.
-var CustomActionHandlers = make(map[string]func(ctx AppContext, cb CommandCallback) []tea.Cmd)
+var CustomActionHandlers = make(map[string]func(ctx AppContext, cb CommandCallback))
 
 // RegisterCustomAction registers a handler for a custom action name.
-func RegisterCustomAction(name string, handler func(ctx AppContext, cb CommandCallback) []tea.Cmd) {
+func RegisterCustomAction(name string, handler func(ctx AppContext, cb CommandCallback)) {
 	CustomActionHandlers[name] = handler
 }
 

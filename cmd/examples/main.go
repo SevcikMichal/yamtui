@@ -18,8 +18,6 @@ import (
 	"path/filepath"
 	stdruntime "runtime"
 
-	tea "charm.land/bubbletea/v2"
-
 	"github.com/SevcikMichal/yamtui/command"
 	"github.com/SevcikMichal/yamtui/component"
 	yruntime "github.com/SevcikMichal/yamtui/runtime"
@@ -46,42 +44,40 @@ func main() {
 	component.Init()
 
 	// Register custom action handlers for focus navigation.
-	command.RegisterCustomAction("focusNext", func(ctx command.AppContext, cb command.CommandCallback) []tea.Cmd {
+	command.RegisterCustomAction("focusNext", func(ctx command.AppContext, cb command.CommandCallback) {
 		order := ctx.ComponentOrder()
 		if len(order) == 0 {
-			return nil
+			return
 		}
 		current := ctx.FocusedComponent()
 		for i, name := range order {
 			if name == current {
 				next := order[(i+1)%len(order)]
 				cb.Focus(next)
-				return nil
+				return
 			}
 		}
 		// Current focus not found in order, focus first component
 		cb.Focus(order[0])
-		return nil
 	})
 
-	command.RegisterCustomAction("focusPrev", func(ctx command.AppContext, cb command.CommandCallback) []tea.Cmd {
+	command.RegisterCustomAction("focusPrev", func(ctx command.AppContext, cb command.CommandCallback) {
 		order := ctx.ComponentOrder()
 		if len(order) == 0 {
-			return nil
+			return
 		}
 		current := ctx.FocusedComponent()
 		for i, name := range order {
 			if name == current {
 				prev := order[(i-1+len(order))%len(order)]
 				cb.Focus(prev)
-				return nil
+				return
 			}
 		}
 		// Current focus not found in order, focus last component
 		if len(order) > 0 {
 			cb.Focus(order[len(order)-1])
 		}
-		return nil
 	})
 
 	// Resolve the examples directory path relative to this source file.

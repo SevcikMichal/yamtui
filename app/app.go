@@ -175,8 +175,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else if handler, ok := command.CustomActionHandlers[cmdName]; ok {
 				ctx := &appContext{app: a}
 				cb := &commandCallback{app: a, cmds: &allCmds}
-				cmds := handler(ctx, cb)
-				allCmds = append(allCmds, cmds...)
+				handler(ctx, cb)
 				keyConsumed = true
 			}
 		} else {
@@ -191,8 +190,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				} else if handler, ok := command.CustomActionHandlers[cmdNameRaw]; ok {
 					ctx := &appContext{app: a}
 					cb := &commandCallback{app: a, cmds: &allCmds}
-					cmds := handler(ctx, cb)
-					allCmds = append(allCmds, cmds...)
+					handler(ctx, cb)
 					keyConsumed = true
 				}
 			}
@@ -309,8 +307,7 @@ func (cb *commandCallback) Custom(actionName string, data map[string]string) {
 	if !ok {
 		return
 	}
-	cmds := handler(&appContext{app: cb.app}, cb)
-	*cb.cmds = append(*cb.cmds, cmds...)
+	handler(&appContext{app: cb.app}, cb)
 }
 
 func (cb *commandCallback) SetContent(componentName, content string) {

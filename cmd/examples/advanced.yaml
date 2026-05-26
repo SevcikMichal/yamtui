@@ -12,6 +12,8 @@
 # Usage: go run cmd/examples/main.go advanced
 # =============================================================================
 
+alt_screen: true
+
 theme:
   name: "default"
 

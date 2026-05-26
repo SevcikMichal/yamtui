@@ -5,9 +5,13 @@
 #   - A single text input component
 #   - One keybinding -> command mapping
 #   - The built-in "quit" command
+#   - Alternate screen buffer enabled
 #
 # Usage: go run cmd/examples/main.go simple
 # =============================================================================
+
+# alt_screen: Use the terminal alternate screen buffer (default: false)
+alt_screen: true
 
 theme:
   name: "default"

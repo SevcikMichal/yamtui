@@ -18,6 +18,7 @@ import (
 
 // App is the main application struct that implements tea.Model.
 type App struct {
+	AltScreen  bool
 	Components map[string]component.Component
 	Commands   map[string]command.Command
 	KeyMap     map[string]string // key string -> command name
@@ -73,6 +74,7 @@ func BuildApp(cfg *loader.Configuration) (*App, error) {
 	}
 
 	return &App{
+		AltScreen:  cfg.AltScreen,
 		Components: components,
 		Commands:   commands,
 		KeyMap:     keyMap,
@@ -234,7 +236,7 @@ func (a *App) View() tea.View {
 
 	return tea.View{
 		Content:   layoutStr,
-		AltScreen: true,
+		AltScreen: a.AltScreen,
 	}
 }
 

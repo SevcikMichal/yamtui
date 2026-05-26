@@ -11,11 +11,12 @@ import (
 
 // Configuration is the root YAML configuration structure.
 type Configuration struct {
-	Theme       ThemeConfig                `yaml:"theme"`
-	Components  map[string]ComponentConfig `yaml:"components"`
-	Layout      LayoutConfig               `yaml:"layout"`
-	Keybindings map[string]string          `yaml:"keybindings"`
-	Commands    map[string]CommandConfig   `yaml:"commands"`
+	AltScreen  bool                       `yaml:"alt_screen"`
+	Theme      ThemeConfig                `yaml:"theme"`
+	Components map[string]ComponentConfig `yaml:"components"`
+	Layout     LayoutConfig               `yaml:"layout"`
+	Keybindings map[string]string         `yaml:"keybindings"`
+	Commands   map[string]CommandConfig   `yaml:"commands"`
 }
 
 // Validate checks the config for required fields and consistency.

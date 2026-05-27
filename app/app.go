@@ -14,6 +14,7 @@ import (
 	"github.com/SevcikMichal/yamtui/component"
 	"github.com/SevcikMichal/yamtui/internal/layout"
 	"github.com/SevcikMichal/yamtui/internal/loader"
+	"github.com/SevcikMichal/yamtui/theme"
 )
 
 // App is the main application struct that implements tea.Model.
@@ -23,6 +24,7 @@ type App struct {
 	Commands   map[string]command.Command
 	KeyMap     map[string]string // key string -> command name
 	Layout     loader.LayoutConfig
+	Theme      *theme.Theme // optional: theme for styling components
 
 	// Runtime state
 	TermWidth        int
@@ -49,7 +51,9 @@ func (c *appContext) ComponentNames() []string {
 }
 
 // BuildApp creates an App from YAML configuration.
-func BuildApp(cfg *loader.Configuration) (*App, error) {
+// The themeRegistry is used to look up named themes or build from inline config.
+// Pass nil to skip theming.
+func BuildApp(cfg *loader.Configuration, themeRegistry *theme.ThemeRegistry) (*App, error) {
 	// Build components using the component registry.
 	components, err := buildComponents(cfg.Components)
 	if err != nil {
@@ -73,13 +77,51 @@ func BuildApp(cfg *loader.Configuration) (*App, error) {
 		}
 	}
 
+	// Build theme.
+	var th *theme.Theme
+	if themeRegistry != nil {
+		th, err = buildTheme(themeRegistry, cfg.Theme)
+		if err != nil {
+			return nil, fmt.Errorf("building theme: %w", err)
+		}
+	}
+
 	return &App{
 		AltScreen:  cfg.AltScreen,
 		Components: components,
 		Commands:   commands,
 		KeyMap:     keyMap,
 		Layout:     cfg.Layout,
+		Theme:      th,
 	}, nil
+}
+
+// buildTheme creates a theme from config.
+func buildTheme(registry *theme.ThemeRegistry, cfg loader.ThemeConfig) (*theme.Theme, error) {
+	// If name is set, try to load built-in theme first
+	if cfg.Name != "" {
+		if th := registry.Get(cfg.Name); th != nil {
+			// If there are also inline overrides, build a derived theme
+			if hasInlineOverrides(cfg) {
+				return theme.BuildFromConfig(registry, cfg)
+			}
+			return th, nil
+		}
+	}
+
+	// Build from inline config (or override)
+	return theme.BuildFromConfig(registry, cfg)
+}
+
+// hasInlineOverrides checks if the theme config has any inline style definitions.
+func hasInlineOverrides(cfg loader.ThemeConfig) bool {
+	return len(cfg.Colors) > 0 ||
+		len(cfg.Default) > 0 ||
+		len(cfg.Focused) > 0 ||
+		len(cfg.Error) > 0 ||
+		len(cfg.Styles) > 0 ||
+		len(cfg.Components) > 0 ||
+		cfg.Base != ""
 }
 
 // buildComponents creates components from YAML configuration.
@@ -223,7 +265,18 @@ func (a *App) View() tea.View {
 		var cols []string
 		for _, name := range row.Components {
 			if c, ok := a.Components[name]; ok {
-				cols = append(cols, c.View())
+				view := c.View()
+				// Apply theme styling if a theme is set.
+				if a.Theme != nil {
+					var styled string
+					if name == a.focusedComponent {
+						styled = a.Theme.GetNamedStyle("focused").Render(view)
+					} else {
+						styled = a.Theme.GetStyle(name).Render(view)
+					}
+					view = styled
+				}
+				cols = append(cols, view)
 			}
 		}
 		rows = append(rows, joinCols(cols, row.Spacing))

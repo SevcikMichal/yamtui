@@ -1,28 +1,45 @@
 # =============================================================================
-# Advanced Example - Multi-Component Layout with Focus Management
+# Theme Demo - Demonstrates the declarative theme system
 # =============================================================================
-# This example demonstrates:
-#   - Multiple component types (input + textarea)
-#   - Grid layout with multiple columns and rows
-#   - Focus commands to navigate between components
-#   - Multiple keybindings
-#   - Inline "bind" field on commands
-#   - Custom properties applied via reflection
+# This example shows:
+#   - Using a built-in theme (catppuccin)
+#   - Inline color palette definition
+#   - Per-component style overrides
+#   - Focused state styling
 #
-# Usage: go run cmd/examples/main.go advanced
+# Usage: go run cmd/examples/main.go theme-demo
 # =============================================================================
 
 alt_screen: true
 
-# Theme configuration - uses built-in "default" theme
-# You can change to: catppuccin, dracula, nord
-# Or define inline colors/styles below
 theme:
-  name: "default"
+  name: "catppuccin"
   
-  # Optional: override specific colors
+  # Override just the accent color
   colors:
-    accent: "#007ACC"
+    accent: "#FAB387"
+
+  # Base style for all components
+  default:
+    padding: [1, 2, 1, 2]
+    margin: [0, 0, 0, 0]
+
+  # Style for the focused component
+  focused:
+    border: rounded
+    border_color: blue
+    color: lavender
+
+  # Per-component overrides
+  components:
+    notesArea:
+      border: rounded
+      border_color: muted
+    quickInput:
+      color: accent
+      padding: [0, 1, 0, 1]
+    statusInput:
+      color: green
 
 components:
   # Left column: multi-line textarea for notes

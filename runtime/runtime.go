@@ -7,7 +7,15 @@ import (
 
 	"github.com/SevcikMichal/yamtui/app"
 	"github.com/SevcikMichal/yamtui/internal/loader"
+	"github.com/SevcikMichal/yamtui/theme"
 )
+
+// globalRegistry is the shared theme registry initialized once.
+var globalRegistry *theme.ThemeRegistry
+
+func init() {
+	globalRegistry = theme.NewThemeRegistry()
+}
 
 // Run creates and runs the application from a YAML config file.
 // It loads the config, builds the app, and starts the Bubbletea program.
@@ -25,12 +33,12 @@ func Run(configPath string) error {
 		cfg = &loader.Configuration{}
 	}
 
-	app, err := app.BuildApp(cfg)
+	a, err := app.BuildApp(cfg, globalRegistry)
 	if err != nil {
 		return err
 	}
 
-	p := tea.NewProgram(app)
+	p := tea.NewProgram(a)
 	if _, err := p.Run(); err != nil {
 		return err
 	}

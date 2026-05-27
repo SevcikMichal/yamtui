@@ -17,6 +17,7 @@ type Configuration struct {
 	Layout      LayoutConfig               `yaml:"layout"`
 	Keybindings map[string]string          `yaml:"keybindings"`
 	Commands    map[string]CommandConfig   `yaml:"commands"`
+	Styles      map[string]ComponentConfig `yaml:"styles"` // deprecated: use theme.components instead
 }
 
 // Validate checks the config for required fields and consistency.
@@ -25,9 +26,16 @@ func (c *Configuration) Validate() error {
 	return nil
 }
 
-// ThemeConfig specifies which theme to use.
+// ThemeConfig specifies theme configuration from YAML.
 type ThemeConfig struct {
-	Name string `yaml:"name"`
+	Base            string            `yaml:"base"`             // inherit from built-in theme by name
+	Name            string            `yaml:"name"`             // theme name (for built-in reference)
+	Colors          map[string]string `yaml:"colors"`           // named color palette
+	Default         map[string]any    `yaml:"default"`          // base style for all components
+	Focused         map[string]any    `yaml:"focused"`          // style for focused component
+	Error           map[string]any    `yaml:"error"`            // style for error state
+	Styles          map[string]map[string]any `yaml:"styles"` // additional named styles
+	Components      map[string]map[string]any `yaml:"components"` // per-component style overrides
 }
 
 // ComponentConfig defines a UI component from YAML.

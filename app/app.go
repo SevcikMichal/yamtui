@@ -237,20 +237,51 @@ func (a *App) View() tea.View {
 	}
 }
 
-// joinCols joins column views with spacing between them.
+// joinCols joins column views with spacing between them, aligning
+// each column's lines side-by-side so multi-line components render
+// correctly in a grid layout.
 func joinCols(cols []string, spacing float64) string {
 	if len(cols) == 0 {
 		return ""
+	}
+	if len(cols) == 1 {
+		return cols[0]
 	}
 	if spacing <= 0 {
 		spacing = 1
 	}
 	sep := strings.Repeat(" ", int(spacing))
-	result := cols[0]
-	for _, col := range cols[1:] {
-		result += sep + col
+
+	// Split each column into lines.
+	lines := make([][]string, len(cols))
+	for i, col := range cols {
+		lines[i] = strings.Split(col, "\n")
 	}
-	return result
+
+	// Find the maximum number of lines across all columns.
+	maxLines := 0
+	for _, l := range lines {
+		if len(l) > maxLines {
+			maxLines = len(l)
+		}
+	}
+
+	// Build each output line by concatenating the corresponding line
+	// from each column, padding with spaces where a column is shorter.
+	var result []string
+	for row := 0; row < maxLines; row++ {
+		var parts []string
+		for colIdx := range lines {
+			if row < len(lines[colIdx]) {
+				parts = append(parts, lines[colIdx][row])
+			} else {
+				parts = append(parts, "")
+			}
+		}
+		result = append(result, strings.Join(parts, sep))
+	}
+
+	return strings.Join(result, "\n")
 }
 
 // joinRows joins row strings with newlines between them.

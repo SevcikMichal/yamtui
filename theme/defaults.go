@@ -2,17 +2,20 @@ package theme
 
 // DefaultTheme returns the default minimal theme.
 func DefaultTheme() *Theme {
+	p := newDefaultPalette()
 	def := NewStyle()
+	def.SetPalette(p)
 	def.SetProperty("color", "text")
 	def.SetProperty("background", "background")
 
 	foc := NewStyle()
+	foc.SetPalette(p)
 	foc.SetProperty("border", "rounded")
 	foc.SetProperty("border_color", "accent")
 
 	return &Theme{
 		Name:    "default",
-		Colors:  newDefaultPalette(),
+		Colors:  p,
 		Default: def,
 		Focused: foc,
 	}
@@ -20,18 +23,21 @@ func DefaultTheme() *Theme {
 
 // CatppuccinTheme returns the Catppuccin Mocha theme.
 func CatppuccinTheme() *Theme {
+	p := newCatppuccinPalette()
 	def := NewStyle()
+	def.SetPalette(p)
 	def.SetProperty("color", "text")
 	def.SetProperty("background", "background")
 
 	foc := NewStyle()
+	foc.SetPalette(p)
 	foc.SetProperty("border", "rounded")
 	foc.SetProperty("border_color", "blue")
 	foc.SetProperty("color", "lavender")
 
 	return &Theme{
 		Name:    "catppuccin",
-		Colors:  newCatppuccinPalette(),
+		Colors:  p,
 		Default: def,
 		Focused: foc,
 	}
@@ -39,17 +45,20 @@ func CatppuccinTheme() *Theme {
 
 // DraculaTheme returns the Dracula theme.
 func DraculaTheme() *Theme {
+	p := newDraculaPalette()
 	def := NewStyle()
+	def.SetPalette(p)
 	def.SetProperty("color", "text")
 	def.SetProperty("background", "background")
 
 	foc := NewStyle()
+	foc.SetPalette(p)
 	foc.SetProperty("border", "rounded")
 	foc.SetProperty("border_color", "purple")
 
 	return &Theme{
 		Name:    "dracula",
-		Colors:  newDraculaPalette(),
+		Colors:  p,
 		Default: def,
 		Focused: foc,
 	}
@@ -57,17 +66,20 @@ func DraculaTheme() *Theme {
 
 // NordTheme returns the Nord theme.
 func NordTheme() *Theme {
+	p := newNordPalette()
 	def := NewStyle()
+	def.SetPalette(p)
 	def.SetProperty("color", "text")
 	def.SetProperty("background", "background")
 
 	foc := NewStyle()
+	foc.SetPalette(p)
 	foc.SetProperty("border", "rounded")
 	foc.SetProperty("border_color", "cyan")
 
 	return &Theme{
 		Name:    "nord",
-		Colors:  newNordPalette(),
+		Colors:  p,
 		Default: def,
 		Focused: foc,
 	}

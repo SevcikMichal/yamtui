@@ -1,0 +1,219 @@
+# =============================================================================
+# Neon Dashboard - A visually striking theme demo
+# =============================================================================
+# This example showcases:
+#   - Custom synthwave-inspired color palette
+#   - Named styles (header, panel, sidebar, alert)
+#   - Per-component overrides with padding, margins, borders
+#   - Multi-row, multi-column dashboard layout
+#   - Focused vs unfocused visual distinction
+#
+# What you should see:
+#   - A dark background with neon-colored borders
+#   - The focused input has a glowing pink rounded border
+#   - The textarea panel has a cyan border with padding
+#   - The spinner panel has a purple border with dim text
+#   - The table has a green border with structured appearance
+#   - Tab/Shift+Tab navigates focus between components
+#   - Press 'q' to quit
+#
+# Usage: go run cmd/examples/main.go neon-dashboard
+# =============================================================================
+
+alt_screen: true
+
+theme:
+  # Start from the default theme and override everything
+  name: "default"
+
+  # Custom synthwave-inspired color palette
+  colors:
+    # Background tones
+    bg-deep: "#0a0015"       # very dark purple-black
+    bg-panel: "#1a0030"       # dark purple panels
+    bg-highlight: "#2a0045"   # slightly lighter purple
+    
+    # Neon accent colors
+    neon-pink: "#ff2a6d"      # hot pink for focus
+    neon-cyan: "#05d9e8"      # bright cyan for panels
+    neon-purple: "#d300c5"    # electric purple
+    neon-green: "#00ff88"     # matrix green
+    neon-yellow: "#f5e550"    # warm yellow
+    neon-orange: "#ff6b35"    # vibrant orange
+    
+    # Text colors
+    text-bright: "#ffffff"    # white for headers
+    text-dim: "#8866aa"       # muted purple for secondary
+    text-muted: "#554477"     # very dim for labels
+
+  # Global defaults: dark background, no margin
+  default:
+    background: bg-deep
+    color: text-dim
+    margin: [0, 1, 0, 1]
+
+  # Focused component: bright neon pink border
+  focused:
+    border: rounded
+    border_color: neon-pink
+    color: text-bright
+    padding: [0, 1, 0, 1]
+
+  # Error state: red border
+  error:
+    border: bold
+    border_color: neon-orange
+    color: neon-orange
+
+  # Named styles for different UI regions
+  styles:
+    header:
+      color: neon-cyan
+      bold: true
+      padding: [0, 2, 0, 2]
+    
+    panel:
+      border: rounded
+      border_color: neon-cyan
+      background: bg-panel
+      padding: [1, 2, 1, 2]
+    
+    sidebar:
+      border: rounded
+      border_color: neon-purple
+      background: bg-panel
+      padding: [1, 2, 1, 2]
+    
+    alert:
+      border: bold
+      border_color: neon-yellow
+      color: neon-yellow
+      padding: [0, 1, 0, 1]
+
+  # Per-component style overrides
+  components:
+    titleDisplay:
+      color: neon-cyan
+      bold: true
+      align: center
+    
+    notesArea:
+      border: rounded
+      border_color: neon-cyan
+      background: bg-panel
+      padding: [1, 2, 1, 2]
+    
+    quickInput:
+      color: neon-pink
+      padding: [0, 1, 0, 1]
+    
+    spinnerDisplay:
+      border: rounded
+      border_color: neon-purple
+      background: bg-panel
+      color: text-dim
+      padding: [1, 2, 1, 2]
+    
+    statusTable:
+      border: rounded
+      border_color: neon-green
+      background: bg-panel
+      padding: [1, 2, 1, 2]
+    
+    alertBox:
+      border: bold
+      border_color: neon-yellow
+      color: neon-yellow
+      background: bg-highlight
+      padding: [0, 2, 0, 2]
+
+components:
+  # Top: Title display (static text shown as a component)
+  titleDisplay:
+    type: "input"
+    properties:
+      placeholder: "◆ NEON DASHBOARD v2.0 ◆"
+      readonly: true
+      cursor: false
+
+  # Left column: Notes textarea
+  notesArea:
+    type: "textarea"
+    properties:
+      placeholder: "Write your notes here..."
+      setWordWrap: true
+      rows: 8
+
+  # Right column: Quick input
+  quickInput:
+    type: "input"
+    properties:
+      placeholder: "Enter command..."
+      prompt: "⚡ "
+      cursor: true
+
+  # Bottom-left: Spinner indicator
+  spinnerDisplay:
+    type: "spinner"
+    properties:
+      text: "Processing..."
+      type: pulse
+
+  # Bottom-right: Status table
+  statusTable:
+    type: "table"
+    properties:
+      rows:
+        - ["Component", "Status", "Uptime"]
+        - ["Dashboard", "Active", "99.9%"]
+        - ["API Server", "Running", "98.5%"]
+        - ["Database", "Healthy", "100%"]
+
+  # Bottom center: Alert box
+  alertBox:
+    type: "input"
+    properties:
+      placeholder: "⚠ System alert: All systems operational"
+      readonly: true
+      cursor: false
+
+layout:
+  rows:
+    # Top row: Full-width title
+    - components: ["titleDisplay"]
+      spacing: 0
+    
+    # Middle row: Two columns (notes + quick input)
+    - components: ["notesArea", "quickInput"]
+      spacing: 3
+    
+    # Bottom row: Three columns (spinner + alert + table)
+    - components: ["spinnerDisplay", "alertBox", "statusTable"]
+      spacing: 2
+
+keybindings:
+  tab: focusNext
+  shift+tab: focusPrev
+  ctrl+c: quitApp
+  q: quitApp
+
+commands:
+  quitApp:
+    type: "quit"
+    bind: "q"
+
+  focusNotes:
+    type: "focus"
+    target: "notesArea"
+
+  focusQuick:
+    type: "focus"
+    target: "quickInput"
+
+  focusSpinner:
+    type: "focus"
+    target: "spinnerDisplay"
+
+  focusTable:
+    type: "focus"
+    target: "statusTable"

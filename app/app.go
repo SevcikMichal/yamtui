@@ -6,6 +6,7 @@ package app
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -85,6 +86,8 @@ func BuildApp(cfg *loader.Configuration, themeRegistry *theme.ThemeRegistry) (*A
 			return nil, fmt.Errorf("building theme: %w", err)
 		}
 	}
+	log.Printf("[app] BuildApp: theme=%v, cfg.Theme.Name=%q, cfg.Theme.Default=%d, cfg.Theme.Focused=%d, cfg.Theme.Components=%d",
+		th != nil, cfg.Theme.Name, len(cfg.Theme.Default), len(cfg.Theme.Focused), len(cfg.Theme.Components))
 
 	return &App{
 		AltScreen:  cfg.AltScreen,
@@ -270,9 +273,13 @@ func (a *App) View() tea.View {
 				if a.Theme != nil {
 					var styled string
 					if name == a.focusedComponent {
-						styled = a.Theme.GetNamedStyle("focused").Render(view)
+						s := a.Theme.GetNamedStyle("focused")
+						styled = s.Render(view)
+						log.Printf("[app] View: component=%s, focused=true, view=%q, styled=%q", name, view, styled)
 					} else {
-						styled = a.Theme.GetStyle(name).Render(view)
+						s := a.Theme.GetStyle(name)
+						styled = s.Render(view)
+						log.Printf("[app] View: component=%s, focused=false, view=%q, styled=%q", name, view, styled)
 					}
 					view = styled
 				}

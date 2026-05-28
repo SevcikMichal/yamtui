@@ -2,12 +2,15 @@ package theme
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/SevcikMichal/yamtui/internal/loader"
 )
 
 // BuildFromConfig creates a Theme from a loader.ThemeConfig.
 // If base is specified, it inherits from the named built-in theme.
+// If only name is specified (and base is empty), it also tries to inherit
+// from the built-in theme with that name, enabling inline overrides.
 func BuildFromConfig(registry *ThemeRegistry, cfg loader.ThemeConfig) (*Theme, error) {
 	var base *Theme
 	if cfg.Base != "" {
@@ -19,6 +22,13 @@ func BuildFromConfig(registry *ThemeRegistry, cfg loader.ThemeConfig) (*Theme, e
 				return nil, fmt.Errorf("base theme %q not found", cfg.Base)
 			}
 		}
+	} else if cfg.Name != "" {
+		// When only name is set (no explicit base), try to inherit from the
+		// built-in theme with that name. This enables inline overrides like:
+		//   theme:
+		//     name: "catppuccin"
+		//     colors: { accent: "#FAB387" }
+		base = registry.Get(cfg.Name)
 	}
 
 	name := cfg.Name
@@ -45,6 +55,12 @@ func BuildFromConfig(registry *ThemeRegistry, cfg loader.ThemeConfig) (*Theme, e
 		*th = *base.Copy()
 		th.Name = name
 	}
+
+	// Set the palette on all styles
+	log.Printf("[theme] BuildFromConfig: name=%s, base=%s, colors=%d, default=%d, focused=%d", name, cfg.Base, len(th.Colors.colors), len(cfg.Default), len(cfg.Focused))
+	th.Default.SetPalette(th.Colors)
+	th.Focused.SetPalette(th.Colors)
+	th.Error.SetPalette(th.Colors)
 
 	// Apply colors
 	for name, color := range cfg.Colors {
@@ -78,6 +94,7 @@ func BuildFromConfig(registry *ThemeRegistry, cfg loader.ThemeConfig) (*Theme, e
 	// Apply named styles
 	for styleName, props := range cfg.Styles {
 		s := NewStyle()
+		s.SetPalette(th.Colors)
 		for prop, value := range props {
 			if err := s.SetProperty(prop, value); err != nil {
 				// fmt.Printf("warning: theme %q: unknown property %q in style %q: %v\n", name, prop, styleName, err)
@@ -89,6 +106,7 @@ func BuildFromConfig(registry *ThemeRegistry, cfg loader.ThemeConfig) (*Theme, e
 	// Apply component-specific styles
 	for compName, props := range cfg.Components {
 		s := NewStyle()
+		s.SetPalette(th.Colors)
 		for prop, value := range props {
 			if err := s.SetProperty(prop, value); err != nil {
 				// fmt.Printf("warning: theme %q: unknown property %q for component %q: %v\n", name, prop, compName, err)

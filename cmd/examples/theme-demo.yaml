@@ -17,18 +17,17 @@ theme:
   
   # Override just the accent color
   colors:
-    accent: "#FAB387"
+    accent: "#f00000"
 
   # Base style for all components
   default:
-    padding: [1, 2, 1, 2]
     margin: [0, 0, 0, 0]
 
   # Style for the focused component
   focused:
     border: rounded
     border_color: blue
-    color: lavender
+    color: red
 
   # Per-component overrides
   components:
@@ -79,7 +78,6 @@ keybindings:
   tab: focusNext
   shift+tab: focusPrev
   # Execute commands
-  enter: submitNote
   ctrl+c: quitApp
 
 commands:
@@ -102,9 +100,3 @@ commands:
   focusStatus:
     type: "focus"
     target: "statusInput"
-
-  # Custom submit command (placeholder - would need custom handler registration)
-  submitNote:
-    type: "focus"
-    target: "statusInput"
-    bind: ":"

@@ -2,6 +2,7 @@ package theme
 
 import (
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 
@@ -11,12 +12,18 @@ import (
 
 // Style wraps lipgloss.Style and provides reflection-based property setting.
 type Style struct {
-	s lipgloss.Style
+	s       lipgloss.Style
+	palette *ColorPalette
 }
 
 // NewStyle creates a new empty Style.
 func NewStyle() Style {
 	return Style{s: lipgloss.NewStyle()}
+}
+
+// SetPalette sets the color palette for this style.
+func (s *Style) SetPalette(p *ColorPalette) {
+	s.palette = p
 }
 
 // Render returns the styled string.
@@ -27,6 +34,37 @@ func (s Style) Render(strs ...string) string {
 // GetStyle returns the underlying lipgloss.Style.
 func (s Style) GetStyle() lipgloss.Style {
 	return s.s
+}
+
+// colorProps lists property names that accept color values.
+var colorProps = map[string]bool{
+	"color":             true,
+	"foreground":        true,
+	"background":        true,
+	"border_color":      true,
+	"border_background": true,
+}
+
+// resolveColorValue converts a color value string to an ansi.Color using the palette.
+// If the value is already an ansi.Color, it is returned as-is.
+func (s Style) resolveColorValue(v any) any {
+	switch val := v.(type) {
+	case string:
+		// Check palette first
+		if s.palette != nil && s.palette.Has(val) {
+			return s.palette.Get(val)
+		}
+		// Check known colors
+		if hex, ok := knownColors[strings.ToLower(val)]; ok {
+			return lipgloss.Color(hex)
+		}
+		// Try parsing as hex or ANSI index
+		return lipgloss.Color(val)
+	case ansi.Color:
+		return val
+	default:
+		return v
+	}
 }
 
 // SetProperty sets a style property by name using reflection-like dispatch.
@@ -53,7 +91,13 @@ func (s Style) GetStyle() lipgloss.Style {
 //	inline - render inline (no newlines)
 //	max_width - maximum width
 //	max_height - maximum height
-func (s Style) SetProperty(name string, value any) error {
+func (s *Style) SetProperty(name string, value any) error {
+	// Resolve color names to actual color values for color properties
+	if colorProps[name] {
+		log.Printf("[theme] SetProperty: prop=%s, value=%v, palette=%v", name, value, s.palette != nil)
+		value = s.resolveColorValue(value)
+		log.Printf("[theme] SetProperty: resolved=%v", value)
+	}
 	handler, ok := propertyHandlers[name]
 	if !ok {
 		return fmt.Errorf("unknown style property %q", name)
@@ -63,12 +107,18 @@ func (s Style) SetProperty(name string, value any) error {
 
 // Merge combines another Style into this one (later values win).
 func (s Style) Merge(other Style) Style {
-	return Style{s: s.s.Inherit(other.s)}
+	return Style{
+		s:       s.s.Inherit(other.s),
+		palette: s.palette,
+	}
 }
 
 // Copy returns a deep copy of the Style.
 func (s Style) Copy() Style {
-	return Style{s: s.s.Copy()}
+	return Style{
+		s:       s.s.Copy(),
+		palette: s.palette,
+	}
 }
 
 // propertyHandlers maps property names to functions that apply them to a lipgloss.Style.
@@ -81,30 +131,30 @@ var propertyHandlers = map[string]func(s *lipgloss.Style, v any) error{
 	"border_background": setBorderBackground,
 
 	// Text formatting
-	"bold":            setBool("Bold"),
-	"italic":          setBool("Italic"),
-	"underline":       setUnderline,
-	"strikethrough":   setBool("Strikethrough"),
-	"reverse":         setBool("Reverse"),
-	"blink":           setBool("Blink"),
-	"dim":             setBool("Dim"),
-	"faint":           setBool("Faint"),
+	"bold":          setBool("Bold"),
+	"italic":        setBool("Italic"),
+	"underline":     setUnderline,
+	"strikethrough": setBool("Strikethrough"),
+	"reverse":       setBool("Reverse"),
+	"blink":         setBool("Blink"),
+	"dim":           setBool("Dim"),
+	"faint":         setBool("Faint"),
 
 	// Spacing
 	"padding": setPadding,
 	"margin":  setMargin,
 
 	// Border
-	"border":       setBorder,
+	"border":        setBorder,
 	"border_top":    setBorderTop,
 	"border_left":   setBorderLeft,
 	"border_right":  setBorderRight,
 	"border_bottom": setBorderBottom,
 
 	// Dimensions
-	"width":     setInt("Width"),
-	"height":    setInt("Height"),
-	"max_width": setInt("MaxWidth"),
+	"width":      setInt("Width"),
+	"height":     setInt("Height"),
+	"max_width":  setInt("MaxWidth"),
 	"max_height": setInt("MaxHeight"),
 
 	// Alignment
@@ -137,22 +187,22 @@ func resolveColor(palette *ColorPalette, v any) ansi.Color {
 }
 
 func setForeground(s *lipgloss.Style, v any) error {
-	s.Foreground(resolveColor(nil, v))
+	*s = s.Foreground(resolveColor(nil, v))
 	return nil
 }
 
 func setBackground(s *lipgloss.Style, v any) error {
-	s.Background(resolveColor(nil, v))
+	*s = s.Background(resolveColor(nil, v))
 	return nil
 }
 
 func setBorderColor(s *lipgloss.Style, v any) error {
-	s.BorderForeground(resolveColor(nil, v))
+	*s = s.BorderForeground(resolveColor(nil, v))
 	return nil
 }
 
 func setBorderBackground(s *lipgloss.Style, v any) error {
-	s.BorderBackground(resolveColor(nil, v))
+	*s = s.BorderBackground(resolveColor(nil, v))
 	return nil
 }
 
@@ -180,21 +230,21 @@ func setBool(methodName string) func(s *lipgloss.Style, v any) error {
 		}
 		switch methodName {
 		case "Bold":
-			s.Bold(val)
+			*s = s.Bold(val)
 		case "Italic":
-			s.Italic(val)
+			*s = s.Italic(val)
 		case "Strikethrough":
-			s.Strikethrough(val)
+			*s = s.Strikethrough(val)
 		case "Reverse":
-			s.Reverse(val)
+			*s = s.Reverse(val)
 		case "Blink":
-			s.Blink(val)
+			*s = s.Blink(val)
 		case "Dim":
-			s.Faint(val)
+			*s = s.Faint(val)
 		case "Faint":
-			s.Faint(val)
+			*s = s.Faint(val)
 		case "Inline":
-			s.Inline(val)
+			*s = s.Inline(val)
 		default:
 			return fmt.Errorf("unknown bool property %q", methodName)
 		}
@@ -224,9 +274,9 @@ func setUnderline(s *lipgloss.Style, v any) error {
 		return fmt.Errorf("cannot convert %T to bool for underline", v)
 	}
 	if val {
-		s.Underline(true)
+		*s = s.Underline(true)
 	} else {
-		s.Underline(false)
+		*s = s.Underline(false)
 	}
 	return nil
 }
@@ -238,13 +288,13 @@ func setPadding(s *lipgloss.Style, v any) error {
 	}
 	switch len(pad) {
 	case 4:
-		s.Padding(pad[0], pad[1], pad[2], pad[3])
+		*s = s.Padding(pad[0], pad[1], pad[2], pad[3])
 	case 3:
-		s.Padding(pad[0], pad[1], pad[2])
+		*s = s.Padding(pad[0], pad[1], pad[2])
 	case 2:
-		s.Padding(pad[0], pad[1])
+		*s = s.Padding(pad[0], pad[1])
 	case 1:
-		s.Padding(pad[0])
+		*s = s.Padding(pad[0])
 	default:
 		return fmt.Errorf("padding must be 1-4 integers, got %d", len(pad))
 	}
@@ -258,13 +308,13 @@ func setMargin(s *lipgloss.Style, v any) error {
 	}
 	switch len(mar) {
 	case 4:
-		s.Margin(mar[0], mar[1], mar[2], mar[3])
+		*s = s.Margin(mar[0], mar[1], mar[2], mar[3])
 	case 3:
-		s.Margin(mar[0], mar[1], mar[2])
+		*s = s.Margin(mar[0], mar[1], mar[2])
 	case 2:
-		s.Margin(mar[0], mar[1])
+		*s = s.Margin(mar[0], mar[1])
 	case 1:
-		s.Margin(mar[0])
+		*s = s.Margin(mar[0])
 	default:
 		return fmt.Errorf("margin must be 1-4 integers, got %d", len(mar))
 	}
@@ -300,24 +350,24 @@ func setBorder(s *lipgloss.Style, v any) error {
 	default:
 		return fmt.Errorf("unknown border style %q (use none, rounded, bold, thick, hidden, double, inner, block, ascii, markdown)", borderStr)
 	}
-	s.BorderStyle(border)
+	*s = s.BorderStyle(border)
 	return nil
 }
 
 func setBorderTop(s *lipgloss.Style, v any) error {
-	return setBorderSide(s, v, func(b bool) { s.BorderTop(b) })
+	return setBorderSide(s, v, func(b bool) { *s = s.BorderTop(b) })
 }
 
 func setBorderLeft(s *lipgloss.Style, v any) error {
-	return setBorderSide(s, v, func(b bool) { s.BorderLeft(b) })
+	return setBorderSide(s, v, func(b bool) { *s = s.BorderLeft(b) })
 }
 
 func setBorderRight(s *lipgloss.Style, v any) error {
-	return setBorderSide(s, v, func(b bool) { s.BorderRight(b) })
+	return setBorderSide(s, v, func(b bool) { *s = s.BorderRight(b) })
 }
 
 func setBorderBottom(s *lipgloss.Style, v any) error {
-	return setBorderSide(s, v, func(b bool) { s.BorderBottom(b) })
+	return setBorderSide(s, v, func(b bool) { *s = s.BorderBottom(b) })
 }
 
 func setBorderSide(s *lipgloss.Style, v any, setter func(bool)) error {
@@ -353,15 +403,15 @@ func setInt(methodName string) func(s *lipgloss.Style, v any) error {
 		}
 		switch methodName {
 		case "Width":
-			s.Width(val)
+			*s = s.Width(val)
 		case "Height":
-			s.Height(val)
+			*s = s.Height(val)
 		case "MaxWidth":
-			s.MaxWidth(val)
+			*s = s.MaxWidth(val)
 		case "MaxHeight":
-			s.MaxHeight(val)
+			*s = s.MaxHeight(val)
 		case "TabWidth":
-			s.TabWidth(val)
+			*s = s.TabWidth(val)
 		default:
 			return fmt.Errorf("unknown int property %q", methodName)
 		}
@@ -377,17 +427,17 @@ func setAlign(s *lipgloss.Style, v any) error {
 	alignStr = strings.ToLower(strings.TrimSpace(alignStr))
 	switch alignStr {
 	case "left", "start":
-		s.Align(lipgloss.Left)
+		*s = s.Align(lipgloss.Left)
 	case "center", "middle":
-		s.Align(lipgloss.Center)
+		*s = s.Align(lipgloss.Center)
 	case "right", "end":
-		s.Align(lipgloss.Right)
+		*s = s.Align(lipgloss.Right)
 	case "top":
-		s.AlignVertical(lipgloss.Top)
-		s.AlignHorizontal(lipgloss.Left)
+		*s = s.AlignVertical(lipgloss.Top)
+		*s = s.AlignHorizontal(lipgloss.Left)
 	case "bottom":
-		s.AlignVertical(lipgloss.Bottom)
-		s.AlignHorizontal(lipgloss.Left)
+		*s = s.AlignVertical(lipgloss.Bottom)
+		*s = s.AlignHorizontal(lipgloss.Left)
 	default:
 		return fmt.Errorf("unknown alignment %q (use left, center, right, top, bottom)", alignStr)
 	}

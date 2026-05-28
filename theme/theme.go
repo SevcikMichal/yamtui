@@ -68,6 +68,22 @@ func (t *Theme) Copy() *Theme {
 	return cp
 }
 
+// applyPalettes sets the theme's color palette on all styles.
+// This should be called after the theme is fully constructed.
+func (t *Theme) applyPalettes() {
+	t.Default.SetPalette(t.Colors)
+	t.Focused.SetPalette(t.Colors)
+	t.Error.SetPalette(t.Colors)
+	for k, s := range t.Styles {
+		s.SetPalette(t.Colors)
+		t.Styles[k] = s
+	}
+	for k, s := range t.ComponentStyles {
+		s.SetPalette(t.Colors)
+		t.ComponentStyles[k] = s
+	}
+}
+
 // ThemeRegistry stores and looks up themes by name.
 type ThemeRegistry struct {
 	themes map[string]*Theme
@@ -104,4 +120,3 @@ func (r *ThemeRegistry) registerBuiltins() {
 	r.Register(DraculaTheme())
 	r.Register(NordTheme())
 }
-

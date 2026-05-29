@@ -6,10 +6,10 @@ package app
 
 import (
 	"fmt"
-	"log"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 
 	"github.com/SevcikMichal/yamtui/command"
 	"github.com/SevcikMichal/yamtui/component"
@@ -86,8 +86,8 @@ func BuildApp(cfg *loader.Configuration, themeRegistry *theme.ThemeRegistry) (*A
 			return nil, fmt.Errorf("building theme: %w", err)
 		}
 	}
-	log.Printf("[app] BuildApp: theme=%v, cfg.Theme.Name=%q, cfg.Theme.Default=%d, cfg.Theme.Focused=%d, cfg.Theme.Components=%d",
-		th != nil, cfg.Theme.Name, len(cfg.Theme.Default), len(cfg.Theme.Focused), len(cfg.Theme.Components))
+	// log.Printf("[app] BuildApp: theme=%v, cfg.Theme.Name=%q, cfg.Theme.Default=%d, cfg.Theme.Focused=%d, cfg.Theme.Components=%d",
+	//      th != nil, cfg.Theme.Name, len(cfg.Theme.Default), len(cfg.Theme.Focused), len(cfg.Theme.Components))
 
 	return &App{
 		AltScreen:  cfg.AltScreen,
@@ -271,17 +271,13 @@ func (a *App) View() tea.View {
 				view := c.View()
 				// Apply theme styling if a theme is set.
 				if a.Theme != nil {
-					var styled string
+					var s theme.Style
 					if name == a.focusedComponent {
-						s := a.Theme.GetNamedStyle("focused")
-						styled = s.Render(view)
-						log.Printf("[app] View: component=%s, focused=true, view=%q, styled=%q", name, view, styled)
+						s = a.Theme.GetFocusedStyle(name)
 					} else {
-						s := a.Theme.GetStyle(name)
-						styled = s.Render(view)
-						log.Printf("[app] View: component=%s, focused=false, view=%q, styled=%q", name, view, styled)
+						s = a.Theme.GetStyle(name)
 					}
-					view = styled
+					view = s.Render(view)
 				}
 				cols = append(cols, view)
 			}
@@ -318,6 +314,18 @@ func joinCols(cols []string, spacing float64) string {
 		lines[i] = strings.Split(col, "\n")
 	}
 
+	// Measure the visible cell width of each column (max across all its lines).
+	// This uses lipgloss.Width which strips ANSI sequences before measuring,
+	// ensuring columns stay aligned even when styled with colors/borders.
+	colWidths := make([]int, len(cols))
+	for colIdx, colLines := range lines {
+		for _, line := range colLines {
+			if w := lipgloss.Width(line); w > colWidths[colIdx] {
+				colWidths[colIdx] = w
+			}
+		}
+	}
+
 	// Find the maximum number of lines across all columns.
 	maxLines := 0
 	for _, l := range lines {
@@ -327,16 +335,24 @@ func joinCols(cols []string, spacing float64) string {
 	}
 
 	// Build each output line by concatenating the corresponding line
-	// from each column, padding with spaces where a column is shorter.
+	// from each column. Non-last columns are right-padded with spaces to
+	// their measured width so subsequent columns stay horizontally aligned.
 	var result []string
+	lastCol := len(lines) - 1
 	for row := 0; row < maxLines; row++ {
 		var parts []string
 		for colIdx := range lines {
+			var line string
 			if row < len(lines[colIdx]) {
-				parts = append(parts, lines[colIdx][row])
-			} else {
-				parts = append(parts, "")
+				line = lines[colIdx][row]
 			}
+			// Pad non-last columns to their full width.
+			if colIdx < lastCol {
+				if pad := colWidths[colIdx] - lipgloss.Width(line); pad > 0 {
+					line += strings.Repeat(" ", pad)
+				}
+			}
+			parts = append(parts, line)
 		}
 		result = append(result, strings.Join(parts, sep))
 	}

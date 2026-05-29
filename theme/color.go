@@ -82,3 +82,15 @@ func (p *ColorPalette) Has(name string) bool {
 	_, ok := p.colors[name]
 	return ok
 }
+
+// Copy returns a deep copy of the ColorPalette.
+func (p *ColorPalette) Copy() *ColorPalette {
+	if p == nil {
+		return nil
+	}
+	newP := NewColorPalette()
+	for k, v := range p.colors {
+		newP.colors[k] = v
+	}
+	return newP
+}

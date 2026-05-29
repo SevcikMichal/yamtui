@@ -33,14 +33,12 @@ func calculateGridLayout(termWidth, termHeight int, layoutConfig loader.LayoutCo
 	result := make(map[string]Size)
 
 	// Phase 1: Allocate row heights.
+	// Subtract row gaps before allocation so heights are computed on the actual usable space.
+	availHeight -= rowGaps(len(layoutConfig.Rows))
+	if availHeight < 0 {
+		availHeight = 0
+	}
 	rowHeights := allocateRowHeights(availHeight, layoutConfig)
-
-	// Account for row gaps.
-	totalRowSpacing := rowGaps(len(layoutConfig.Rows))
-	availHeight -= totalRowSpacing
-
-	// Recalculate row heights after accounting for gaps.
-	rowHeights = allocateRowHeights(availHeight, layoutConfig)
 
 	// Phase 2: Allocate column width within each row.
 	for rowIndex, row := range layoutConfig.Rows {

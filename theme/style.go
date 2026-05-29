@@ -2,7 +2,6 @@ package theme
 
 import (
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 
@@ -14,6 +13,7 @@ import (
 type Style struct {
 	s       lipgloss.Style
 	palette *ColorPalette
+	defined bool
 }
 
 // NewStyle creates a new empty Style.
@@ -92,24 +92,29 @@ func (s Style) resolveColorValue(v any) any {
 //	max_width - maximum width
 //	max_height - maximum height
 func (s *Style) SetProperty(name string, value any) error {
-	// Resolve color names to actual color values for color properties
 	if colorProps[name] {
-		log.Printf("[theme] SetProperty: prop=%s, value=%v, palette=%v", name, value, s.palette != nil)
 		value = s.resolveColorValue(value)
-		log.Printf("[theme] SetProperty: resolved=%v", value)
 	}
 	handler, ok := propertyHandlers[name]
 	if !ok {
 		return fmt.Errorf("unknown style property %q", name)
 	}
+	s.defined = true
 	return handler(&s.s, value)
 }
 
-// Merge combines another Style into this one (later values win).
+// IsDefined returns true if any property was set on this style.
+func (s Style) IsDefined() bool {
+	return s.defined
+}
+
+// Merge applies other on top of s — other's properties win where set.
+// This is used to layer component overrides on top of the default style.
 func (s Style) Merge(other Style) Style {
 	return Style{
-		s:       s.s.Inherit(other.s),
+		s:       other.s.Inherit(s.s),
 		palette: s.palette,
+		defined: s.defined || other.defined,
 	}
 }
 
@@ -118,6 +123,7 @@ func (s Style) Copy() Style {
 	return Style{
 		s:       s.s.Copy(),
 		palette: s.palette,
+		defined: s.defined,
 	}
 }
 

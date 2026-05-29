@@ -25,6 +25,16 @@ func (t *Theme) GetStyle(componentName string) Style {
 	return s
 }
 
+// GetFocusedStyle returns the style for a focused component.
+// It layers Default → component overrides → focused style, so all three contribute.
+func (t *Theme) GetFocusedStyle(componentName string) Style {
+	s := t.GetStyle(componentName)
+	if t.Focused.IsDefined() {
+		s = s.Merge(t.Focused)
+	}
+	return s
+}
+
 // GetNamedStyle returns a named style (e.g., "focused", "error").
 // Returns the Default style if the named style doesn't exist.
 func (t *Theme) GetNamedStyle(name string) Style {
@@ -32,7 +42,7 @@ func (t *Theme) GetNamedStyle(name string) Style {
 	case "default":
 		return t.Default
 	case "focused":
-		if !t.Focused.GetStyle().GetInline() { // Check if set
+		if t.Focused.IsDefined() {
 			return t.Focused
 		}
 		return t.Default
@@ -50,21 +60,19 @@ func (t *Theme) GetNamedStyle(name string) Style {
 func (t *Theme) Copy() *Theme {
 	cp := &Theme{
 		Name:            t.Name,
-		Colors:          t.Colors,
+		Colors:          t.Colors.Copy(),
 		Default:         t.Default.Copy(),
 		Focused:         t.Focused.Copy(),
 		Error:           t.Error.Copy(),
 		Styles:          make(map[string]Style),
 		ComponentStyles: make(map[string]Style),
 	}
-
 	for k, v := range t.Styles {
 		cp.Styles[k] = v.Copy()
 	}
 	for k, v := range t.ComponentStyles {
 		cp.ComponentStyles[k] = v.Copy()
 	}
-
 	return cp
 }
 

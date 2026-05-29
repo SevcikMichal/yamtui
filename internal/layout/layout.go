@@ -15,8 +15,8 @@ type Size struct {
 const (
 	defaultColSpacing = 1 // gap between columns in chars
 	defaultRowSpacing = 1 // gap between rows in lines
-	outerHPad         = 2 // horizontal padding (1 char each side)
-	outerVPad         = 1 // vertical padding (1 line top+bottom)
+	outerHPad         = 0 // no horizontal padding — content fills full width
+	outerVPad         = 0 // no vertical padding — content fills full height
 )
 
 // CalculateLayout computes dimensions for all components based on terminal size

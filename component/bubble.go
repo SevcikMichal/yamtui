@@ -2,9 +2,11 @@ package component
 
 import (
 	"fmt"
+	"image/color"
 	"reflect"
 
 	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 )
 
 // BubbleType groups the construction and typed update logic for a bubble model.
@@ -140,6 +142,68 @@ func (b *bubbleComponent) Update(msg tea.Msg) (Component, tea.Cmd) {
 func (b *bubbleComponent) SetContent(content string) {
 	if setter, ok := b.model.(interface{ SetContent(string) }); ok {
 		setter.SetContent(content)
+	}
+}
+
+// SetBackground pushes a background colour into the component's internal
+// styles so that text rendered by textarea/textinput (or any bubble with
+// Styles()/SetStyles()) uses the theme's panel background instead of the
+// terminal default. This works generically via reflection: it calls
+// model.Styles(), walks every lipgloss.Style field in the returned struct
+// (including nested structs like Focused/Blurred), sets Background(bg),
+// then calls model.SetStyles(updated).
+func (b *bubbleComponent) SetBackground(bg color.Color) {
+	// model must have both Styles() T and SetStyles(T) for some struct T.
+	mv := reflect.ValueOf(b.model)
+	stylesMethod := mv.MethodByName("Styles")
+	if !stylesMethod.IsValid() || stylesMethod.Type().NumIn() != 0 || stylesMethod.Type().NumOut() != 1 {
+		return
+	}
+	setMethod := mv.MethodByName("SetStyles")
+	if !setMethod.IsValid() || setMethod.Type().NumIn() != 1 {
+		return
+	}
+
+	result := stylesMethod.Call(nil)
+	stylesVal := result[0]
+
+	// We need a settable copy.
+	cp := reflect.New(stylesVal.Type()).Elem()
+	cp.Set(stylesVal)
+
+	setStyleBg(cp, bg)
+
+	setMethod.Call([]reflect.Value{cp})
+}
+
+// setStyleBg recursively walks a struct value, finds all lipgloss.Style
+// fields, and calls Background(bg) on each one.
+func setStyleBg(v reflect.Value, bg color.Color) {
+	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return
+		}
+		v = v.Elem()
+	}
+	if v.Kind() != reflect.Struct {
+		return
+	}
+
+	lipglossStyleType := reflect.TypeOf(lipgloss.Style{})
+
+	for i := 0; i < v.NumField(); i++ {
+		f := v.Field(i)
+		if !f.CanSet() {
+			continue
+		}
+		if f.Type() == lipglossStyleType {
+			// Call Background(bg) on the style value.
+			s := f.Interface().(lipgloss.Style)
+			s = s.Background(bg)
+			f.Set(reflect.ValueOf(s))
+		} else if f.Kind() == reflect.Struct {
+			setStyleBg(f, bg)
+		}
 	}
 }
 

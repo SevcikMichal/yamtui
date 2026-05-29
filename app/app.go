@@ -6,6 +6,7 @@ package app
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
 
 	ansicolor "github.com/charmbracelet/x/ansi"
@@ -346,9 +347,8 @@ func (a *App) View() tea.View {
 		// top+bottom (outerVPad=2) and 2 chars left+right (outerHPad=4)
 		// on each side, so total rendered area fills the terminal exactly.
 		rootStyle := lipgloss.NewStyle().
-			Width(a.TermWidth - 2).
-			Height(a.TermHeight - 1).
-			Padding(0, 1).
+			Width(a.TermWidth).
+			Height(a.TermHeight).
 			Background(bg)
 		layoutStr = rootStyle.Render(layoutStr)
 	}
@@ -544,6 +544,24 @@ func (a *App) applyComponentSizes(focusedName string) {
 		}
 		if sh, ok := comp.(interface{ SetHeight(int) }); ok {
 			sh.SetHeight(contentH)
+		}
+
+		// Push the panel background colour into the component's internal
+		// styles (textarea, textinput) so their rendered text uses the
+		// theme background instead of the terminal default.
+		if a.Theme != nil {
+			var s theme.Style
+			if name == focusedName {
+				s = a.Theme.GetFocusedStyle(name)
+			} else {
+				s = a.Theme.GetStyle(name)
+			}
+			bg := s.GetStyle().GetBackground()
+			if bg != nil {
+				if setter, ok := comp.(interface{ SetBackground(color.Color) }); ok {
+					setter.SetBackground(bg)
+				}
+			}
 		}
 	}
 }

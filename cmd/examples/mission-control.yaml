@@ -1,0 +1,191 @@
+# =============================================================================
+# Mission Control — a visually stunning yamtui showcase
+# =============================================================================
+#
+# Layout (4 rows):
+#   ┌─── TITLE  ─────────────────────────────────────────────────┐
+#   │  EDITOR (textarea)            │  ACTIVITY FEED (viewport)  │
+#   │  EDITOR (textarea)            │  ACTIVITY FEED (viewport)  │
+#   ├─ LOADER ──┬─── PROCESSES (table) ──────────────────────────┤
+#   │  spinner  │  SUBSYSTEM  STATE   CPU%   MEM                 │
+#   ╰─── COMMAND LINE (input) ───────────────────────────────────╯
+#
+# Focus cycle: editor → procs → cmdline  (static components skipped)
+# Keys: tab / shift+tab, q to quit, ↑↓ to scroll feed while focused
+#
+# Usage: go run cmd/examples/main.go mission-control
+# =============================================================================
+
+alt_screen: true
+
+theme:
+  name: "default"
+
+  colors:
+    # ── Backgrounds ──────────────────────────────────────────
+    void:     "#040413"   # canvas — near-black navy
+    deep:     "#07091c"   # panel background
+    surface:  "#0c1028"   # raised surface (command bar)
+    lifted:   "#131830"   # selection highlight
+
+    # ── Accents ──────────────────────────────────────────────
+    electric: "#00c8ff"   # primary accent — electric blue
+    pulse:    "#0077aa"   # secondary — deep teal
+    corona:   "#7fd8f8"   # light blue
+    stellar:  "#cceeff"   # near-white cyan
+    solar:    "#ffb340"   # amber — spinner / warm accent
+    aurora:   "#00e5a0"   # green — command input
+    nova:     "#ff4466"   # red — alerts
+
+    # ── Text hierarchy ───────────────────────────────────────
+    bright:   "#e6f4ff"   # primary text
+    normal:   "#5a88b0"   # secondary text
+    muted:    "#233344"   # dim — inactive borders & placeholder
+    wire:     "#151c35"   # very dim — panel separator lines
+
+  default:
+    background: void
+    color: muted
+
+  focused:
+    border: rounded
+    border_color: electric
+    border_background: void
+    color: bright
+    padding: [0, 1, 0, 1]
+
+  components:
+    title:
+      background: deep
+      color: electric
+      bold: true
+      align: center
+      padding: [1, 4, 1, 4]
+
+    editor:
+      border: rounded
+      border_color: wire
+      border_background: void
+      background: deep
+      color: normal
+      padding: [0, 1, 0, 1]
+
+    feed:
+      border: rounded
+      border_color: wire
+      border_background: void
+      background: deep
+      color: muted
+      padding: [0, 1, 0, 1]
+
+    loader:
+      border: rounded
+      border_color: solar
+      border_background: void
+      background: deep
+      color: solar
+      align: center
+      bold: true
+      padding: [2, 1, 2, 1]
+
+    procs:
+      border: rounded
+      border_color: wire
+      border_background: void
+      background: deep
+      color: normal
+      padding: [0, 1, 0, 1]
+
+    cmdline:
+      border: rounded
+      border_color: pulse
+      border_background: void
+      background: surface
+      color: aurora
+      padding: [0, 1, 0, 1]
+
+components:
+  title:
+    type: "text"
+    properties:
+      value: "◈  M I S S I O N   C O N T R O L  ·  Y A M T U I  ◈"
+
+  editor:
+    type: "textarea"
+    properties:
+      placeholder: "// mission notes..."
+
+  feed:
+    type: "viewport"
+    properties:
+      content: "  ◆ system   → online\n  ◆ network  → connected\n  ◆ storage  → nominal\n  ◆ sensors  → active\n  ────────────────────────\n  [00:01] boot sequence complete\n  [00:02] authentication ok\n  [00:03] core services initialized\n  [00:04] telemetry stream active\n  [00:05] process monitor up\n  [00:06] all systems nominal\n  [00:07] ready for input"
+
+  loader:
+    type: "spinner"
+
+  procs:
+    type: "table"
+    properties:
+      rows:
+        - ["SUBSYSTEM", "STATE", "CPU%", "MEM"]
+        - ["core/api", "● RUN", "0.4", "44 MB"]
+        - ["core/db", "● RUN", "1.2", "128 MB"]
+        - ["net/sync", "● RUN", "0.1", "18 MB"]
+        - ["io/disk", "○ SLP", "0.0", "8 MB"]
+        - ["sec/auth", "● RUN", "0.2", "32 MB"]
+
+  cmdline:
+    type: "input"
+    properties:
+      prompt: "◈ "
+      placeholder: "enter command..."
+
+layout:
+  sizing:
+    title:
+      height:
+        type: fixed
+        value: 3
+    cmdline:
+      height:
+        type: fixed
+        value: 3
+    loader:
+      width:
+        type: fixed
+        value: 22
+      height:
+        type: ratio
+        value: 1.0
+    editor:
+      height:
+        type: ratio
+        value: 2.0
+    feed:
+      height:
+        type: ratio
+        value: 2.0
+    procs:
+      height:
+        type: ratio
+        value: 1.0
+
+  rows:
+    - components: ["title"]
+      spacing: 0
+    - components: ["editor", "feed"]
+      spacing: 2
+    - components: ["loader", "procs"]
+      spacing: 2
+    - components: ["cmdline"]
+      spacing: 0
+
+keybindings:
+  tab: focusNext
+  shift+tab: focusPrev
+  ctrl+c: quitApp
+  q: quitApp
+
+commands:
+  quitApp:
+    type: "quit"

@@ -86,6 +86,13 @@ func (b *bubbleComponent) SetWidth(w int) {
 	}
 }
 
+// SetHeight delegates to the underlying model's SetHeight method.
+func (b *bubbleComponent) SetHeight(h int) {
+	if setter, ok := b.model.(interface{ SetHeight(int) }); ok {
+		setter.SetHeight(h)
+	}
+}
+
 // SetSize delegates to the underlying model's SetSize method if available.
 func (b *bubbleComponent) SetSize(width, height int) {
 	if setter, ok := b.model.(interface{ SetSize(int, int) }); ok {

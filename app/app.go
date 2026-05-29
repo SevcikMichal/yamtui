@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	ansicolor "github.com/charmbracelet/x/ansi"
+
 	tea "charm.land/bubbletea/v2"
 	lipgloss "charm.land/lipgloss/v2"
 
@@ -215,25 +217,8 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if wmsg, ok := msg.(tea.WindowSizeMsg); ok {
 		a.TermWidth = wmsg.Width
 		a.TermHeight = wmsg.Height
-
-		// Calculate and apply layout dimensions.
-		sizes := layout.CalculateLayout(a.TermWidth, a.TermHeight, a.Layout)
-		a.LayoutSizes = sizes
-		for name, size := range sizes {
-			comp, ok := a.Components[name]
-			if !ok {
-				continue
-			}
-			if sc, ok := comp.(interface{ SetSize(int, int) }); ok {
-				sc.SetSize(size.Width, size.Height)
-			}
-			// Set width via SetWidth interface (for textinput/textarea).
-			// This enables responsive layouts defined in YAML using sizing.ratio or sizing.fill.
-			if sw, ok := comp.(interface{ SetWidth(int) }); ok {
-				sw.SetWidth(size.Width)
-			}
-		}
-
+		a.LayoutSizes = layout.CalculateLayout(a.TermWidth, a.TermHeight, a.Layout)
+		a.applyComponentSizes(a.focusedComponent)
 		return a, nil
 	}
 
@@ -298,6 +283,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (a *App) View() tea.View {
 	var rows []string
 
+	var canvasBg ansicolor.Color
+	if a.Theme != nil {
+		canvasBg = a.Theme.Default.GetStyle().GetBackground()
+	}
+
 	for _, row := range a.Layout.Rows {
 		var cols []string
 		for _, name := range row.Components {
@@ -318,14 +308,15 @@ func (a *App) View() tea.View {
 					ls = lipgloss.NewStyle()
 				}
 
-				// Constrain to allocated size accounting for the style's own frame
-				// (border + padding). Without this, borders overflow and short
-				// components (inputs, spinners) leave unstyled gaps below them.
+				// Set Width/Height on the style so the allocated cell is
+				// filled exactly. The component was already sized to
+				// contentW = sz.Width - frame, so ls.Width(contentW) matches
+				// the rendered content and no clipping or wrapping occurs.
+				// Height fills the cell with the background color for short
+				// components (inputs, spinners).
 				if sz, ok := a.LayoutSizes[name]; ok {
-					fw := ls.GetHorizontalFrameSize()
-					fh := ls.GetVerticalFrameSize()
-					cw := sz.Width - fw
-					ch := sz.Height - fh
+					cw := sz.Width - ls.GetHorizontalFrameSize()
+					ch := sz.Height - ls.GetVerticalFrameSize()
 					if cw < 0 {
 						cw = 0
 					}
@@ -339,10 +330,28 @@ func (a *App) View() tea.View {
 				cols = append(cols, view)
 			}
 		}
-		rows = append(rows, joinCols(cols, row.Spacing))
+		rows = append(rows, joinCols(cols, row.Spacing, canvasBg))
 	}
 
 	layoutStr := joinRows(rows)
+
+	// Wrap the entire layout in a full-terminal background-coloured container
+	// so the theme's canvas colour fills margins, inter-row gaps, and any
+	// unused space instead of letting the terminal's own background bleed
+	// through. The padding (1 line top+bottom, 2 chars left+right) matches
+	// the outerVPad/outerHPad constants used by the layout calculator.
+	if a.Theme != nil && a.TermWidth > 0 && a.TermHeight > 0 {
+		bg := a.Theme.Default.GetStyle().GetBackground()
+		// Width/Height set the *content* area; Padding(1,2) adds 1 line
+		// top+bottom (outerVPad=2) and 2 chars left+right (outerHPad=4)
+		// on each side, so total rendered area fills the terminal exactly.
+		rootStyle := lipgloss.NewStyle().
+			Width(a.TermWidth - 2).
+			Height(a.TermHeight - 1).
+			Padding(0, 1).
+			Background(bg)
+		layoutStr = rootStyle.Render(layoutStr)
+	}
 
 	return tea.View{
 		Content:   layoutStr,
@@ -352,8 +361,9 @@ func (a *App) View() tea.View {
 
 // joinCols joins column views with spacing between them, aligning
 // each column's lines side-by-side so multi-line components render
-// correctly in a grid layout.
-func joinCols(cols []string, spacing float64) string {
+// correctly in a grid layout. bg is the canvas background colour used
+// to paint the inter-column gap so the terminal's own colour doesn't bleed.
+func joinCols(cols []string, spacing float64, bg ansicolor.Color) string {
 	if len(cols) == 0 {
 		return ""
 	}
@@ -363,7 +373,13 @@ func joinCols(cols []string, spacing float64) string {
 	if spacing <= 0 {
 		spacing = 1
 	}
-	sep := strings.Repeat(" ", int(spacing))
+	// Paint the separator with the canvas background colour so the gap
+	// doesn't expose the terminal's own background.
+	gapStyle := lipgloss.NewStyle()
+	if bg != nil {
+		gapStyle = gapStyle.Background(bg)
+	}
+	sep := gapStyle.Render(strings.Repeat(" ", int(spacing)))
 
 	// Split each column into lines.
 	lines := make([][]string, len(cols))
@@ -455,6 +471,9 @@ func (cb *commandCallback) Focus(name string) {
 		}
 	}
 	cb.app.focusedComponent = name
+	// Re-apply component sizes so the newly focused component is sized to
+	// its focused-style content area (frame may differ, e.g. border added).
+	cb.app.applyComponentSizes(name)
 	// Check if Focus() returns a tea.Cmd - Bubbletea needs this to actually set focus
 	if focuser, ok := comp.(interface{ Focus() tea.Cmd }); ok {
 		cmd := focuser.Focus()
@@ -481,6 +500,51 @@ func (cb *commandCallback) SetContent(componentName, content string) {
 	}
 	if setter, ok := comp.(interface{ SetContent(string) }); ok {
 		setter.SetContent(content)
+	}
+}
+
+// applyComponentSizes pushes content dimensions (allocated size minus the
+// style frame) into each component that accepts SetSize or SetWidth.
+// focusedName is used to select the correct style (focused vs unfocused)
+// so the content area is computed against the actual frame that will be
+// rendered, preventing the style from clipping or wrapping component content.
+func (a *App) applyComponentSizes(focusedName string) {
+	for name, size := range a.LayoutSizes {
+		comp, ok := a.Components[name]
+		if !ok {
+			continue
+		}
+
+		contentW := size.Width
+		contentH := size.Height
+
+		if a.Theme != nil {
+			var s theme.Style
+			if name == focusedName {
+				s = a.Theme.GetFocusedStyle(name)
+			} else {
+				s = a.Theme.GetStyle(name)
+			}
+			ls := s.GetStyle()
+			contentW -= ls.GetHorizontalFrameSize()
+			contentH -= ls.GetVerticalFrameSize()
+			if contentW < 0 {
+				contentW = 0
+			}
+			if contentH < 0 {
+				contentH = 0
+			}
+		}
+
+		if sc, ok := comp.(interface{ SetSize(int, int) }); ok {
+			sc.SetSize(contentW, contentH)
+		}
+		if sw, ok := comp.(interface{ SetWidth(int) }); ok {
+			sw.SetWidth(contentW)
+		}
+		if sh, ok := comp.(interface{ SetHeight(int) }); ok {
+			sh.SetHeight(contentH)
+		}
 	}
 }
 

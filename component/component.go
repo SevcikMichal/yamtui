@@ -65,8 +65,29 @@ func Init() {
 		// Navigation / selection
 		reg("paginator", func() interface{} { return paginator.New() })
 		reg("filepicker", func() interface{} { return filepicker.New() })
+
+		// Static display — not focusable, not interactive.
+		globalRegistry.RegisterHelper("text", func(props map[string]any) (Component, error) {
+			val := ""
+			if v, ok := props["value"]; ok {
+				if s, ok := v.(string); ok {
+					val = s
+				}
+			}
+			return &textComponent{value: val}, nil
+		})
 	})
 }
+
+// textComponent is a non-interactive label that renders a static string.
+// It deliberately does not implement Focus() so it is excluded from focus traversal.
+type textComponent struct {
+	value string
+}
+
+func (t *textComponent) Name() string                          { return "text" }
+func (t *textComponent) View() string                          { return t.value }
+func (t *textComponent) Update(_ tea.Msg) (Component, tea.Cmd) { return t, nil }
 
 // Build creates a component from a type name and properties using the global registry.
 func Build(componentType string, properties map[string]any) (Component, error) {

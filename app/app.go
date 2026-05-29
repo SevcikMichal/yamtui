@@ -30,7 +30,8 @@ type App struct {
 	// Runtime state
 	TermWidth        int
 	TermHeight       int
-	focusedComponent string // currently focused component name
+	focusedComponent string           // currently focused component name
+	LayoutSizes      map[string]layout.Size // last computed sizes per component
 }
 
 // appContext wraps *App to provide the command.AppContext interface.
@@ -161,21 +162,49 @@ func buildCommands(commands map[string]loader.CommandConfig) (map[string]command
 }
 
 // Init returns the initialization command for the program.
-// It focuses the first component by default so it can receive keyboard input.
+// It collects init cmds from every component (e.g. spinner tick) and focuses
+// the first focusable component in layout order.
 func (a *App) Init() tea.Cmd {
-	for name, comp := range a.Components {
-		if focuser, ok := comp.(interface{ Focus() tea.Cmd }); ok {
-			a.focusedComponent = name
-			return focuser.Focus()
+	var cmds []tea.Cmd
+
+	// Collect init commands from all components in layout order.
+	// This ensures animated components (spinners, progress bars) start ticking.
+	for _, row := range a.Layout.Rows {
+		for _, name := range row.Components {
+			comp, ok := a.Components[name]
+			if !ok {
+				continue
+			}
+			if initer, ok := comp.(interface{ Init() tea.Cmd }); ok {
+				if cmd := initer.Init(); cmd != nil {
+					cmds = append(cmds, cmd)
+				}
+			}
 		}
-		// Fallback: check for Focus() without Cmd return
-		if focuser, ok := comp.(interface{ Focus() }); ok {
-			a.focusedComponent = name
-			focuser.Focus()
-		}
-		break
 	}
-	return nil
+
+	// Focus the first focusable component in layout order.
+	for _, row := range a.Layout.Rows {
+		for _, name := range row.Components {
+			comp, ok := a.Components[name]
+			if !ok {
+				continue
+			}
+			if focuser, ok := comp.(interface{ Focus() tea.Cmd }); ok {
+				a.focusedComponent = name
+				if cmd := focuser.Focus(); cmd != nil {
+					cmds = append(cmds, cmd)
+				}
+				return tea.Batch(cmds...)
+			}
+			if focuser, ok := comp.(interface{ Focus() }); ok {
+				a.focusedComponent = name
+				focuser.Focus()
+				return tea.Batch(cmds...)
+			}
+		}
+	}
+	return tea.Batch(cmds...)
 }
 
 // Update processes messages and delegates to handlers and components.
@@ -189,6 +218,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Calculate and apply layout dimensions.
 		sizes := layout.CalculateLayout(a.TermWidth, a.TermHeight, a.Layout)
+		a.LayoutSizes = sizes
 		for name, size := range sizes {
 			comp, ok := a.Components[name]
 			if !ok {
@@ -242,10 +272,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// Only delegate to components if the key was not consumed by a command.
-	// This prevents consumed keys (like tab/shift+tab for focus navigation)
-	// from being processed as text input by unfocused components.
-	if !keyConsumed {
+	// Dispatch messages to components.
+	// Key messages consumed by a command (e.g. Tab for focus) are not forwarded
+	// to components so they don't land in text inputs. All other messages —
+	// ticks, window events, custom msgs — are always forwarded so that animated
+	// components (spinners, progress bars, stopwatches) keep running regardless
+	// of whether a key was handled.
+	_, isKeyMsg := msg.(tea.KeyPressMsg)
+	if !isKeyMsg || !keyConsumed {
 		for name, c := range a.Components {
 			newComp, cmd := c.Update(msg)
 			if newComp != nil {
@@ -269,7 +303,9 @@ func (a *App) View() tea.View {
 		for _, name := range row.Components {
 			if c, ok := a.Components[name]; ok {
 				view := c.View()
-				// Apply theme styling if a theme is set.
+
+				// Determine the lipgloss style to apply (empty if no theme).
+				var ls lipgloss.Style
 				if a.Theme != nil {
 					var s theme.Style
 					if name == a.focusedComponent {
@@ -277,8 +313,29 @@ func (a *App) View() tea.View {
 					} else {
 						s = a.Theme.GetStyle(name)
 					}
-					view = s.Render(view)
+					ls = s.GetStyle()
+				} else {
+					ls = lipgloss.NewStyle()
 				}
+
+				// Constrain to allocated size accounting for the style's own frame
+				// (border + padding). Without this, borders overflow and short
+				// components (inputs, spinners) leave unstyled gaps below them.
+				if sz, ok := a.LayoutSizes[name]; ok {
+					fw := ls.GetHorizontalFrameSize()
+					fh := ls.GetVerticalFrameSize()
+					cw := sz.Width - fw
+					ch := sz.Height - fh
+					if cw < 0 {
+						cw = 0
+					}
+					if ch < 0 {
+						ch = 0
+					}
+					ls = ls.Width(cw).Height(ch)
+				}
+
+				view = ls.Render(view)
 				cols = append(cols, view)
 			}
 		}
@@ -427,11 +484,23 @@ func (cb *commandCallback) SetContent(componentName, content string) {
 	}
 }
 
-// ComponentOrder returns components in layout order (for focus navigation).
+// ComponentOrder returns focusable components in layout order.
+// Non-focusable components (e.g. text labels) are excluded so Tab
+// navigation only cycles through interactive elements.
 func (c *appContext) ComponentOrder() []string {
 	var order []string
 	for _, row := range c.app.Layout.Rows {
-		order = append(order, row.Components...)
+		for _, name := range row.Components {
+			comp, ok := c.app.Components[name]
+			if !ok {
+				continue
+			}
+			_, hasFocusCmd := comp.(interface{ Focus() tea.Cmd })
+			_, hasFocus := comp.(interface{ Focus() })
+			if hasFocusCmd || hasFocus {
+				order = append(order, name)
+			}
+		}
 	}
 	return order
 }

@@ -103,6 +103,23 @@ func (b *bubbleComponent) View() string {
 	return ""
 }
 
+// Init calls the underlying model's Init() if it exists, returning the
+// initial command (e.g. the first tick for spinner/stopwatch/progress).
+// For components that use Tick() tea.Msg instead of Init() tea.Cmd
+// (e.g. charm.land/bubbles/v2 spinner, stopwatch), Tick is used as
+// the initial command so the animation loop starts immediately.
+func (b *bubbleComponent) Init() tea.Cmd {
+	if initer, ok := b.model.(interface{ Init() tea.Cmd }); ok {
+		return initer.Init()
+	}
+	// Bubbles v2 animated components (spinner, stopwatch) expose Tick() tea.Msg.
+	// A method value matching func() tea.Msg satisfies tea.Cmd.
+	if ticker, ok := b.model.(interface{ Tick() tea.Msg }); ok {
+		return ticker.Tick
+	}
+	return nil
+}
+
 func (b *bubbleComponent) Update(msg tea.Msg) (Component, tea.Cmd) {
 	if b.doUpdate == nil {
 		return b, nil

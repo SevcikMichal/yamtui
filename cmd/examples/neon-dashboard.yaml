@@ -128,13 +128,11 @@ theme:
       padding: [0, 2, 0, 2]
 
 components:
-  # Top: Title display (static text shown as a component)
+  # Top: Title display (static, non-focusable text label)
   titleDisplay:
-    type: "input"
+    type: "text"
     properties:
-      placeholder: "◆ NEON DASHBOARD v2.0 ◆"
-      readonly: true
-      cursor: false
+      value: "> ◆ NEON DASHBOARD v2.0 ◆"
 
   # Left column: Notes textarea
   notesArea:
@@ -169,15 +167,18 @@ components:
         - ["API Server", "Running", "98.5%"]
         - ["Database", "Healthy", "100%"]
 
-  # Bottom center: Alert box
+  # Bottom center: Alert box (static, non-focusable)
   alertBox:
-    type: "input"
+    type: "text"
     properties:
-      placeholder: "⚠ System alert: All systems operational"
-      readonly: true
-      cursor: false
+      value: "> ⚠ System alert: All systems operational"
 
 layout:
+  sizing:
+    titleDisplay:
+      height:
+        type: fixed
+        value: 3
   rows:
     # Top row: Full-width title
     - components: ["titleDisplay"]
